@@ -70,7 +70,7 @@ The plan says Google Cloud SQL. The project only needs a cloud database, so I co
 - Nothing is embedded again: the schema comes from our Alembic migrations, then only the data is copied with
   `pg_dump`/`pg_restore`. The data pipeline, tests and evaluation stay local; the cloud runs only the chat path.
 - One container holds FastAPI and the MCP server, which runs as a child process over stdio exactly as locally, so
-  `TOOL_BACKEND=mcp` needs no second service. The container installs only `requirements-runtime.txt`.
+  `TOOL_BACKEND=mcp` needs no second service. The container installs only the runtime dependencies (`uv sync --locked --no-dev`).
 - The frontend is a static export: the page runs in the browser and calls the API, so it needs no server of its own.
 - Logs: Cloud Run's disk is thrown away with the instance, so `REQUEST_LOG_PATH=stdout` prints each request line and
   Cloud Logging keeps it.
@@ -113,6 +113,29 @@ The plan says Google Cloud SQL. The project only needs a cloud database, so I co
   project keeps counting for ~30 days), so the backend and site go into my existing `ai-devops-508221`
   (billing already linked, APIs already enabled). Everything is named `movie-copilot-*`, and the backend's own service
   account can read only its two secrets, so it stays separate from the project's other services.
+
+### One backend language: Python stays, the types are shared
+
+Two languages cost something in several places: the API's shapes were copied by hand into the TSX files, the
+synchronous pipeline needs a worker thread to stream and a private event loop to talk to the MCP client, and there are
+two dependency setups and two deployments.
+
+| Option | For | Against |
+|---|---|---|
+| Move the backend into Next.js route handlers (LangChain.js, MCP TypeScript SDK, Drizzle) | one set of types, plain `await`s, one deployment | about 3,000 lines and the whole test suite rewritten, and every measurement repeated; ingestion, embedding and the evaluation stay in Python and would lose the pipeline code they share |
+| **Keep Python, generate the types (chosen)** | removes the hand-copied shapes, the cost that can cause wrong behaviour | the worker thread, the event loop and two toolchains stay |
+
+The types come from the Pydantic schemas: `scripts/export_openapi.py` writes `frontend/openapi.json`,
+`openapi-typescript` turns it into `app/api-types.ts`. The stream's events are Pydantic models too (`StreamEvent`), so
+they are in the same file. A backend test fails when `openapi.json` is out of date, CI when the types are.
+
+### Dependencies: pinned with uv
+
+Three requirements files with only lower bounds meant a container rebuild could install another LangChain than the one
+the tests passed on, and `OpenRouterChat` overrides a private method of `langchain-openai` to keep the cost of streamed
+calls. Now `pyproject.toml` lists the dependencies (with a `dev` group for scripts and tests), `uv.lock` pins every
+version, and CI and the Dockerfile install with `uv sync --locked`. `langchain-openai` is capped at its minor version, so
+a new one is a deliberate change. The first lock was made from the environment the tests had passed on.
 
 ### Migrations: Alembic
 
@@ -197,12 +220,32 @@ Qwen's better first-place ranking would change little in practice. The Qwen vect
 
 - **K = 8.** The plan asks for 5–10 chunks; 8 is the default, configurable through `RETRIEVAL_TOP_K` and limited
   to 5–10. More chunks give the model more evidence but cost more input tokens per answer (about 1,000 now).
-- **Index use (option 1).** At ~10k chunks PostgreSQL does an exact full scan instead of
-  using the HNSW index (see Findings). Options:
+- **Index use (option 1).** At first PostgreSQL did an exact full scan at ~10k chunks instead of using the HNSW index
+  (see Findings); since migration 0004 rewrote the table it uses the index. Options:
   1. **Let PostgreSQL choose (chosen).** Results are exact, nothing tricky to explain, and the index is used on its
      own as the table grows.
   2. Force the index (`SET LOCAL enable_seqscan = off`). Faster today (17 ms vs 50 ms), but approximate, and it
      overrides the planner.
+
+### Filters: genres, years and rating narrow both searches
+
+Query translation always produced filters, but retrieval ignored them, so "a thriller from the 2010s" also searched
+films from the 2020s. Options: apply them, or stop asking the model for them.
+
+- **Chosen: apply them, with three safeguards.**
+  1. *Only when the question names no film.* In a one-off check of the 50 evaluation questions, 16 questions that name
+     films got filters, and in 11 of them nobody had asked for that genre ("Which is rated higher, Logan or
+     Deadpool?" → Action). A wrong one would hide the film itself.
+  2. *Nothing matches → search again without them,* with a warning under the answer.
+  3. *An impossible range* (2019 to 2010) is dropped, not searched.
+- **Every genre, not any.** "Crime thrillers" means both. For the one question with two genres and no film, requiring
+  every genre put 8 of 8 on-target chunks in the context, any genre 7 of 8.
+- **Iterative scan.** HNSW collects its ~40 nearest chunks first and filters afterwards, so a rare filter can leave
+  nothing: a test with the planner forced onto the index got 0 rows instead of 10. `SET LOCAL hnsw.iterative_scan =
+  'strict_order'` (pgvector 0.8+) keeps reading along the index until k rows are found, nearest first. It is also on
+  for per-film retrieval, which has the same shape.
+- The same question through the tool: `filter_movies` got `year_max`, and the evaluation a decade question (C6: science
+  fiction films from the 2010s rated 8 or higher, where *Dune* (2021) and *Spider-Man: No Way Home* (2021) are the traps).
 
 ### Query translation: structured output, reasoning off
 
@@ -268,19 +311,28 @@ for later are the same idea applied to the answer step: a faster answer model (a
 measure, not assume), and streaming, which shows the answer as it is written so the user is not staring
 at a spinner.
 
-### Source citations: show every chunk the model was given
+### Source citations: what the answer cites first, the rest collapsed
 
-Each answer comes with `sources`, and the page shows them in a collapsible list under the answer: the film, critic
-and publication, a short excerpt, a link to the original review, and the chunk and review IDs.
+Each answer comes with `sources`, and the page shows them under the answer: the film, critic and publication, a short
+excerpt, a link to the original review, and the chunk and review IDs.
 
 Which chunks count as sources? Options:
 
 | Option | How | Trade-off |
 |---|---|---|
-| **All retrieved chunks (chosen)** | list the 8 chunks the model received | honest record of what the answer was based on, simple, no extra model behaviour to trust; may include chunks the answer did not use |
+| All retrieved chunks (the first version) | list the 8 chunks the model received | honest record of what the answer was based on, simple, no extra model behaviour to trust; may include chunks the answer did not use |
 | Only chunks the answer cites | ask the model to tag claims with chunk IDs, keep the tagged ones | tighter list, but depends on the model tagging correctly, and a missing tag hides evidence |
+| **Both (chosen)** | cited chunks first, numbered as in the text; the others collapsed under "Also retrieved, not cited" | the reader sees what was used, and the complete record is one click away |
 
-All retrieved chunks were chosen to keep the record complete and independent of the model. The plan's citation
+The first version listed everything, which with hybrid search's lower precision included off-topic matches. Now the
+model writes the chunk id after each claim (`[2281]`), and `app/citations.py` checks every id against the chunks that
+were sent: an invented id is removed from the text and shown in the RAG panel. The API keeps the ids; the page turns
+them into numbers in the order first cited, so it can do that while the answer is still streaming. Conversation
+history stores the answer without ids, because a later question has other sources. The check proves a cited chunk was
+given to the model, not that it supports the claim; the judge measures that. It also gives the evaluation a citation
+precision that needs no LLM.
+
+The plan's citation
 fields (`movie`, `review_id`, `chunk_id`) are kept as is; `critic`, `publication`, `year`, `url`, `excerpt` and
 `source` were added for display (the API contract allows adding fields, never renaming). Review links come from the
 review rows, and only http(s) links are rendered.
@@ -295,7 +347,7 @@ ever used as bound SQL parameters in fixed query shapes.
 
 | Tool | Answers | Returns |
 |---|---|---|
-| `filter_movies(year_min, genre, rating_min)` | "thrillers since 2010 rated above 7.5" | the best 10 by IMDb rating, plus how many matched in total |
+| `filter_movies(year_min, year_max, genre, rating_min)` | "thrillers since 2010 rated above 7.5" | the best 10 by IMDb rating, plus how many matched in total |
 | `compare_movies(movie_a, movie_b)` | "which is rated higher, Zodiac or Prisoners?" | year, IMDb rating, genres, review count for each, and which is higher |
 | `rating_summary(movie)` | "what do critics score it?" | average critic rating (0–10), number of reviews, spread across 2-point buckets |
 | `get_movie_metadata(movie)` (added with MCP) | "who wrote Zodiac?", "what is its IMDb rating?" | director, writers, cast, runtime, genres, IMDb rating and votes, language, overview, keywords |
@@ -340,6 +392,9 @@ Decisions:
 | Loop limit | **At most 3 rounds**, then one last call with tools switched off | unlimited: a model that keeps asking for tools would keep the user waiting and keep costing |
 | Tool calls in the response | **Returned now** as `tool_calls: [{tool, arguments, result}]` (shown on the page in the Tool calls panel) | hide until the panel exists: no way to check from outside which tool ran |
 | Retrieval for pure tool questions | **Always runs** | skip it: we cannot know beforehand, and the reviews let the model add context to a number |
+| The model repeats an identical call | **Run once per question**; a repeat gets a short "already answered" reply and is not in `tool_calls`. A round of only repeats goes straight to the answer without tools | show the repeats in the panel: 30 copies of one card |
+| The model requests very many calls | **At most 8 run per round**; the rest get `TOOL_LIMIT`. No question in the saved evaluation results had 6 calls in total | no cap: calls that differ only slightly are not identical, so running once would not stop them |
+| The answer is a tool call written as text | **One retry with tools switched off, then the error `LLM_INVALID_ANSWER` (502)**: nothing is stored, the page offers "Try again", and the log and evaluation count it as an error. While streaming, the markup is held back | a message returned as the answer: it would be stored in the conversation and counted as a success |
 
 ### MCP server: the tools behind a standard protocol
 
@@ -535,7 +590,7 @@ These are defaults set while building, and any of them can change:
 | What history contains | the **text** of earlier questions and answers only | resending old sources and tool results would multiply the prompt size; each new question retrieves fresh evidence anyway |
 | When a turn is saved | question and answer **together, after a successful answer** | a failed request leaves no half-turn behind, so history never contains a question without its answer |
 | Conversation id | a **UUID made by the browser**, kept in `localStorage` | a reload continues the same conversation; "New chat" makes a new id; an invalid id is rejected (`INVALID_INPUT`) |
-| Endpoints | `/api/chat` stays the main one; the plan's `POST /api/conversations`, `GET /api/conversations/{id}` and `POST /api/conversations/{id}/messages` are added | the page uses `GET` to restore history after a reload |
+| Endpoints | `/api/chat` and `/api/chat/stream` start conversations; `GET /api/conversations/{id}` reads one | the page uses `GET` to restore history after a reload; two unused `POST /api/conversations` routes were removed |
 
 ### RAG visualisation: what the panel shows
 
@@ -571,7 +626,8 @@ can change):
 - **Raw JSON toggle** on every card: the arguments and result exactly as the model received them, for checking that
   the readable view matches.
 - **Repeated calls are marked.** Testing tool calling showed the model sometimes repeats an identical call; the card says "same call
-  repeated by the model" instead of silently showing a duplicate.
+  repeated by the model" instead of silently showing a duplicate. Since identical calls run
+  once, it only appears for a call that was over the limit in one round and ran in the next.
 - **Panel order:** Tool calls, then Sources, then RAG process. Tools hold the exact facts the answer usually leads with.
 
 ### Token usage and cost: measured, not computed
@@ -863,8 +919,8 @@ Real questions through the whole pipeline:
 
 - The model sometimes sends numbers as text (`"rating_min": "7.5"`). The Pydantic schema converts them safely, which
   is one reason validation sits in our code rather than trusting the model's formatting.
-- It repeated one call with identical arguments in the same round. That is harmless and cheap, but it will appear
-  twice once tool calls are shown on the page.
+- It repeated one call with identical arguments in the same round. That looked harmless and cheap; later runs repeated a
+  call about 30 times, and identical calls now run once (see the decision above).
 - It uses tools even when reviews alone would answer, which adds facts rather than harming the answer.
 
 ### Conversation history
@@ -1021,7 +1077,7 @@ Vector search and keyword search on the questions earlier phases flagged (films 
 - **Measured, not assumed:** the obvious fix for noise, dropping generic keywords, made two-film coverage worse
   (`docs/experiments/hybrid_variants.json`), so it is not used.
 
-### RAG evaluation ([`evaluation/results/hybrid.json`](../evaluation/results/hybrid.json))
+### RAG evaluation 
 
 All 49 questions, hybrid retrieval (the default), MiMo answering, Claude Haiku 4.5 judging:
 
@@ -1067,7 +1123,7 @@ What the results show:
 - **Rule checks and judge agreed everywhere** (nothing flagged for review), a first sign the judge can be trusted on
   this set.
 
-### Vector-only vs hybrid on the evaluation set ([`evaluation/results/comparison.json`](../evaluation/results/comparison.json))
+### Vector-only vs hybrid on the evaluation set 
 
 The full evaluation (49 questions, Claude Haiku 4.5 judging) run once per strategy, results in the plan's format:
 
@@ -1114,7 +1170,7 @@ What the comparison shows:
   (**adopted**, measured below) and retrieving reviews per named film for comparison questions
   (**skipped** for now; it was added later).
 
-### Prompt rule: report what critics say, no verdict of its own ([`evaluation/results/hybrid-fixA.json`](../evaluation/results/hybrid-fixA.json))
+### Prompt rule: report what critics say, no verdict of its own 
 
 The rule added to the system prompt: report what the critics and the data say; for "which is better / scarier / funnier"
 answer with what the reviews and tool results show, and if they do not settle it, say so rather than deciding. Measured
@@ -1155,7 +1211,7 @@ one, without the chatbot or any LLM:
 - Found while testing: *Parasite* is not in the 500-film subset, so questions about it get `MOVIE_NOT_FOUND`.
 - **Does a fourth tool make the model call tools when it should not?** While testing streaming, "why do critics like X?"
   sometimes triggered `rating_summary` and `get_movie_metadata`, each tool round adding 4–8 s. Measured on the 24
-  factual, opinion and plot evaluation questions ([`evaluation/results/hybrid-p24.json`](../evaluation/results/hybrid-p24.json),
+  factual, opinion and plot evaluation questions (`hybrid-p24.json`,
   about $0.13) against the run with three tools:
 
   | | 3 tools | 4 tools |
@@ -1284,3 +1340,30 @@ Checked in the running app:
 - Tests: 31 tests that check retrieval and tools against the real films are marked `real_data`. GitHub Actions
   (`.github/workflows/tests.yml`) runs the suite against an empty migrated database, where those skip (327 passed,
   32 skipped locally on an empty database); locally with the data all 359 pass. The workflow also builds the frontend.
+
+### Filters and citations ([`evaluation/results/final3/summary.json`](../evaluation/results/final3/summary.json))
+
+Two hybrid runs of the 50 questions ($0.61, of which $0.53 was the judge), compared with the two earlier hybrid runs
+(`final2`) on the 49 questions both had:
+
+- Retrieval: Recall@5 0.944 → 0.971, Precision@5 0.807 → 0.876; on the five recommendation questions Precision@5
+  0.52 → 1.00 and Recall@8 0.42 → 0.69. Expected film reached the model: 1.000 both times.
+- Answers: accuracy 0.985 → 0.980 (one answer of the 98 half right instead of right, within noise); recommendations
+  0.95 → 1.00, opinions 1.00 → 0.94 (two answers half right in one run each, both named the right film).
+- Citations: precision 0.949, against 0.830 of all chunks sent; no invented id; 37 and 40 of 50 answers cite.
+- Median time 5.5 s → 4.2 s. Not an improvement I can claim: the provider's speed varies from day to day.
+- Cost per 1,000 answers $0.67 → $0.79.
+- Expected tool used: 1.00 and 0.91 → 0.92 and 0.75. In "Inception or Interstellar?" and "Heat or Joker?" the model looked
+  both films up with `get_movie_metadata` instead of `compare_movies`; in "Alien or Aliens?" it called no tool in either
+  run and read the ratings from the profile chunks. All of those answers were right.
+- A retrieval-only check of the 50 questions showed which films filters apply to: see the decision above.
+- MiMo's tool calls were uneven before these changes too: on "Recommend a well-rated thriller from the 2010s" it made
+  34 near-identical calls in 1 of 4 runs of the old code, and 28 and 34 in 2 of 5 runs of the new code, once ending with the
+  raw text of a tool call as the answer.
+- After making the tool loop robust to this (decision under Tool calling), 5 streamed runs of the same question: no call
+  ran or was reported twice, and no markup was shown. The fault was there to absorb: one run requested 64 calls in two
+  rounds, of which the 2 distinct ones ran, and another repeated its call in the next round and went straight to the
+  answer. No run wrote a tool call as text, so the retry is tested with fake models only. Two of the 5 runs still left
+  out the years. The cost of these runs was not measured.
+- Run 2 was interrupted: Docker stopped after 36 questions and the rest failed with `RAG_RETRIEVAL_FAILED`. `--resume`
+  re-ran those 14.

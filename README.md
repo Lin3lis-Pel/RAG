@@ -31,9 +31,10 @@ came from. I built a research assistant that works the other way round:
   saying so when the evidence isn't there.
 - **Exact facts from the database.** Ratings, comparisons, filters and credits come from SQL through tools, never from
   the model's memory.
-- **Transparent.** Under each answer: the sources with links to the original reviews, a "RAG process" panel (the
+- **Transparent.** Claims carry numbered citations to the reviews they come from, checked by the backend. Under each
+  answer: the cited sources with links to the original reviews, a "RAG process" panel (the
   rewritten query, vector and keyword results, the fusion), the tool calls with their results, and tokens and cost.
-- **Measured.** A 49-question evaluation set checks retrieval and answers; every number here comes from a real run.
+- **Measured.** A 50-question evaluation set checks retrieval and answers; every number here comes from a real run.
 
 Data: 9,987 English Rotten Tomatoes critic reviews of 500 films, joined to TMDB/IMDb metadata (director, cast,
 runtime, IMDb rating, overview, keywords). Details in [`docs/dataset.md`](docs/dataset.md).
@@ -89,14 +90,21 @@ every chunk into pgvector (`scripts/`). Deployment steps: [`docs/deployment.md`]
    - *Vector search:* the `semantic_query` is embedded and pgvector returns the 10 chunks closest in meaning.
    - *Keyword search:* PostgreSQL full-text search returns the 10 chunks containing the keywords as phrases, which
      catches exact names that embeddings blur.
+   - *Filters:* limits the user states ("a thriller from the 2010s rated above 8") narrow both searches to films with
+     those genres, years and rating. They are ignored when the question names a film, because the translation model
+     sometimes derives a genre from that film, and dropped with a visible warning when nothing matches. HNSW filters
+     after it has found its nearest chunks, so pgvector's iterative scan keeps the index reading until the 10 are full.
    - *Fusion:* Reciprocal Rank Fusion scores each chunk by its rank in both lists, Σ 1 / (60 + rank), and the top 8
      go to the model. When a question names two or more films, each film is searched separately and gets an equal
      share, so a comparison sees evidence for both.
 4. **Generation** (`tool_calling.py`). The prompt holds the rules, the history, the 8 chunks inside
    `<source chunk_id=… movie=…>` tags and the question. The rules: answer only from the sources, say when they are not
-   enough, report what critics say instead of giving a verdict, use a tool for any exact fact. The model may call tools
-   for up to 3 rounds before it answers.
-5. **Response.** The answer streams to the page token by token, then the sources, the debug object and the usage. The
+   enough, cite the chunk id after each claim, report what critics say instead of giving a verdict, use a tool for any
+   exact fact. The model may call tools for up to 3 rounds before it answers.
+5. **Citations** (`citations.py`). A cited id only counts if that chunk was really sent to the model; any other is removed
+   from the answer and reported. The page shows the ids as numbers, lists the cited sources first and collapses the rest
+   under "Also retrieved, not cited".
+6. **Response.** The answer streams to the page token by token, then the sources, the debug object and the usage. The
    exchange is stored for follow-ups and one JSON line goes to the request log.
 
 **Chunking** (`documents.py`): one *review* document per critic review and one *profile* document per film. Bodies are
@@ -110,7 +118,7 @@ SQL query (`tools.py`, served by `mcp_server.py`).
 
 | Tool | Arguments | Returns | Example question |
 |---|---|---|---|
-| `filter_movies` | `year_min`, `genre`, `rating_min` (at least one), `limit` | best matches by IMDb rating, plus how many matched | "Well-rated thrillers since 2010?" |
+| `filter_movies` | `year_min`, `year_max`, `genre`, `rating_min` (at least one), `limit` | best matches by IMDb rating, plus how many matched | "Well-rated thrillers from the 2010s?" |
 | `compare_movies` | `movie_a`, `movie_b` | year, IMDb rating, genres, review count, which is rated higher | "Which is rated higher, Zodiac or Prisoners?" |
 | `rating_summary` | `movie` | average critic score (0–10), number of reviews, distribution | "How did critics score Black Swan?" |
 | `get_movie_metadata` | `movie` | director, writers, cast, runtime, genres, IMDb rating, overview | "Who directed Prisoners?" |
@@ -125,8 +133,8 @@ the backend and the answer carries a warning.
 
 ## Vector-only vs hybrid search
 
-I ran the full 49-question evaluation twice per strategy with the same code, data and models; only the retrieval
-strategy changed (`RETRIEVAL_STRATEGY=vector` or `hybrid`).
+I ran the evaluation (49 questions then, before filters and citations) twice per strategy with the same code, data and
+models; only the retrieval strategy changed (`RETRIEVAL_STRATEGY=vector` or `hybrid`).
 
 ![Vector-only vs hybrid search: hybrid reaches the expected film more often and has higher recall, lower precision, and the same answer quality](docs/images/vector_vs_hybrid.svg)
 
@@ -158,20 +166,47 @@ later closed the remaining gap. Results: [`evaluation/results/final2/summary.jso
 
 ## Evaluation
 
-**Dataset:** 49 questions written only for evaluation ([`evaluation/evaluation_dataset.jsonl`](evaluation/evaluation_dataset.jsonl)):
-8 factual, 7 rating, 8 opinion, 8 plot, 5 recommendation, 9 two-film comparisons and 4 about films that are not in
-the data. Every expected answer was read from the database.
+**Dataset:** 50 questions written only for evaluation ([`evaluation/evaluation_dataset.jsonl`](evaluation/evaluation_dataset.jsonl)):
+8 factual, 7 rating, 8 opinion, 8 plot, 6 recommendation, 9 two-film comparisons and 4 about films that are not in
+the data. Every expected answer was read from the database. The sixth recommendation, about a decade, came with
+`year_max`; the older measurements below used the first 49.
 
 **Metrics** ([`evaluation/run_evaluation.py`](evaluation/run_evaluation.py)):
 
 - *Retrieval*, with no LLM: did the expected film reach the model, Recall@5/@8, Precision@5.
+- *Citations*, with no LLM: of the chunks the answer cites, the share about an expected film, next to the same share of
+  all chunks the model was given.
 - *Answers*, judged by Claude Haiku 4.5 (a different company's model from the ones answering), which sees exactly the
   sources and tool results the system saw: correctness (1 / 0.5 / 0), relevance, and groundedness checked claim by claim.
 - *Speed and cost* from the system's own timings and OpenRouter's reported cost.
 
-Every question type scores 1.0 except comparisons (0.94) and recommendations (0.95). The misses: "Is *Black Swan* more
-disturbing than *Hereditary*?" (the reviews don't settle it, judged half right) and an animated-family list that
-included *Spider-Man: Into the Spider-Verse*, which the data doesn't tag as a family film.
+### Current results
+
+Two runs with filters and citations against the two hybrid runs before them, on the 49 questions both had:
+
+| Hybrid search, mean of 2 runs | Before | With filters and citations |
+|---|---|---|
+| Expected film reached the model | 1.000 | 1.000 |
+| Recall@5 | 0.944 | **0.971** |
+| Precision@5 | 0.807 | **0.876** |
+| Precision@5, the 5 recommendation questions | 0.52 | **1.00** |
+| Answer accuracy | 0.985 | 0.980 |
+| Cost per 1,000 answers | $0.67 | $0.79 |
+
+- **Filters fix the recommendation questions.** All of them state limits, and now every one of their top 5 chunks is
+  about a film that meets them. The new decade question was answered correctly in both runs, without a film from the
+  2020s.
+- **Citations point at the right films.** 95 % of cited chunks are about an expected film, against 83 % of the chunks
+  the model was given, and none of the cited ids was invented. 37 and 40 of the 50 answers cite something; most of the
+  others are exact facts or say the film is not in the data.
+- **Answer quality is unchanged within noise.** 0.005 is half a question. The misses: "Is *Black Swan* more disturbing
+  than *Hereditary*?" (the reviews don't settle it; half right in both runs, and one run added an unsupported verdict)
+  and two opinion answers that were half right in one run each. Groundedness over all 50 questions: 0.999.
+- **The price:** about 18 % more per answer, still under the $1 threshold below.
+- **Not fixed:** for "Alien or Aliens?" the model read the ratings from the film profiles instead of calling a tool, in
+  both runs. The answers were right, but they should come from the tool.
+
+Results: [`evaluation/results/final3/summary.json`](evaluation/results/final3/summary.json).
 
 ### What counts as good enough
 
@@ -187,7 +222,8 @@ dashed line:
 
 ### Pipeline settings
 
-Each experiment changed one setting from the default (hybrid search, 8 chunks, query translation on, MiMo answers):
+Measured before filters and citations. Each experiment changed one setting from the default at the time (hybrid search,
+8 chunks, query translation on, MiMo answers):
 
 ![Pipeline settings scorecard: the default, 5 chunks and 10 chunks meet all four thresholds except 10 chunks on time; translation off misses accuracy](docs/images/pipeline_scorecard.svg)
 
@@ -202,7 +238,8 @@ Each experiment changed one setting from the default (hybrid search, 8 chunks, q
 
 ## Choosing the answer model
 
-Same questions, sources and tools for every model; only the model that writes the answer changes. I compared the model
+Measured before filters and citations. Same questions, sources and tools for every model; only the model that writes
+the answer changes. I compared the model
 in use with two cheap alternatives and one top-tier model, GPT-6 Astra ($10 / $50 per million tokens, about 70× MiMo's
 input price), to see how much quality the cheap models leave on the table. Each cheap model ran twice; Astra ran once
 because of its price.
@@ -323,6 +360,14 @@ The options I compared and the numbers behind each choice are in [`docs/project_
   and it works for questions that need both.
 - **Report what critics say, no verdict of its own.** Adding this rule cut answers with an unsupported claim from 3 of
   21 to 1 of 21 on the questions where it mattered.
+- **Checked citations instead of a list of everything retrieved.** The model names the chunk behind each claim, the
+  backend checks that it was really sent, and the reader sees what was used apart from what was merely found.
+- **Filters only when no film is named.** The translation model often adds a genre nobody asked for when a question names
+  a film, and a wrong filter would hide that film. Without a film name, filters took Precision@5 on the recommendation
+  questions from 0.52 to 1.00.
+- **Python backend and TypeScript frontend, one set of types.** The page's API types are generated from the Pydantic
+  schemas and checked in CI. Moving the backend into Next.js would remove the second toolchain, but the data scripts,
+  the evaluation and the tests share the pipeline's Python code and run it in-process.
 - **Neon + Cloud Run + Firebase Hosting.** The same PostgreSQL + pgvector as locally, managed and free at this size,
   with scale-to-zero hosting. The cost is a slow first answer after an idle period.
 
@@ -336,10 +381,14 @@ The options I compared and the numbers behind each choice are in [`docs/project_
 - **Data quality:** the metadata includes at least one TV series (*Vikings*) listed as a film. It already shows up in
   answers and scores: the top-tier model left it out of a war-film list and was marked down for it. Filtering by
   runtime or title type when selecting the subset would remove such rows.
+- **MiMo's tool calls are uneven:** it sometimes repeats the same call many times, drops an argument such as the years, or
+  answers with the raw text of a tool call. An identical call now runs once per question, a round is capped at 8 calls,
+  and a raw tool call is retried once and then reported as an error. The repeats still cost output tokens, the retry has
+  only been tested with fake models, and a dropped argument still goes unnoticed.
+- **A citation is checked for existence, not for support:** the backend knows the cited chunk was sent, only the
+  evaluation checks that it backs the claim.
 - **Lower precision with hybrid search:** names like "Toy Story" also match the sequels and crowd out other films.
   Re-ranking the fused results would help.
-- **Filters are extracted but not applied:** query translation produces year and genre filters, but retrieval doesn't
-  use them yet; the `filter_movies` tool covers those questions for now.
 - **Injection tests need refreshing:** hybrid search no longer retrieves 3 of the 5 poisoned reviews, so those attacks
   no longer reach the model. Their questions need rewriting.
 - **Cold start:** about 33 s to the first words after an idle period. `--cpu-boost` or one always-on instance would
@@ -387,14 +436,13 @@ docker compose up -d
 
 ```bash
 cd backend
-uv venv --python 3.11
+uv sync
 .venv\Scripts\activate          # macOS / Linux: source .venv/bin/activate
-uv pip install -r requirements.txt
 alembic upgrade head
 ```
 
-`requirements.txt` installs everything for development: the runtime packages in `requirements-runtime.txt` (all the
-deployed container needs) plus `datasets`, `pytest` and `httpx`.
+`uv sync` installs the exact versions in the committed `uv.lock`, the same ones CI and the container use. The container
+leaves out the `dev` group (`datasets`, `pytest`, `httpx`).
 
 **5. Load the data** (from the repo root, with the backend environment still active). The download is about 670 MB,
 and embedding costs money (about $0.02 for all 10,540 chunks), so look at the dry run first:
@@ -428,16 +476,16 @@ Then open http://localhost:3000 and ask a question.
 
 ```bash
 cd backend
-pytest                 # 359 tests, about 20 s, no API calls
+pytest                 # 412 tests, about 20 s, no API calls
 pytest -m security     # one group: backend, rag, tools, security, mcp
 pytest -m live         # 13 tests with the real models, about $0.02
 ```
 
 | Group | Tests | What it covers |
 |---|---|---|
-| backend | 170 | every API route, streaming, error handling, history, schema, vector and keyword search, fusion, usage, logging |
-| rag | 43 | known, vague and no-answer questions against the real database, the prompt rules, the debug object |
-| tools | 69 | all four tools with valid and invalid arguments, missing and duplicate titles, the tool-calling loop |
+| backend | 191 | every API route, streaming, error handling, history, schema, API types, vector and keyword search, filters, fusion, usage, logging |
+| rag | 60 | citations, known, vague and no-answer questions against the real database, the prompt rules, the debug object |
+| tools | 84 | all four tools with valid and invalid arguments, missing and duplicate titles, the tool-calling loop |
 | security | 63 | hostile tool arguments in-process and through MCP, injected tags in reviews, messages and tool results, no secrets in errors |
 | mcp | 14 | discovery, every tool and error code through MCP, the stdio child process |
 

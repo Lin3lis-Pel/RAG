@@ -1,4 +1,4 @@
-# Dataset (Phase 2)
+# Dataset
 
 ## Sources
 
@@ -52,9 +52,9 @@ and up to 20 reviews each: **9,987 reviews**. Per movie we prefer reviews with a
 then longer text. Every selected review has a score; 89% are from top critics. Includes the plan's example
 movies (Prisoners, Zodiac, Inception).
 
-## Consequence for chunking (Phase 4)
+## Consequence for chunking
 
-Because critic reviews are at most 363 characters, a single review never needs splitting. Phase 4 therefore
+Because critic reviews are at most 363 characters, a single review never needs splitting. Ingestion therefore
 builds one document per review (so a retrieved chunk cites exactly one review) plus one profile document per
 movie from its metadata, and chunks bodies at 1,000 characters with 150 overlap. Result for the first subset:
 9,987 review chunks and 553 profile chunks; 53 long profiles (many keywords) split into two.

@@ -1,0 +1,1137 @@
+{
+  "runs": {
+    "vector": 0,
+    "hybrid": 2
+  },
+  "overall": {
+    "retrieval_hit_rate": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      }
+    },
+    "retrieval_recall_at_5": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.9632,
+        "min": 0.9623,
+        "max": 0.9641
+      }
+    },
+    "retrieval_recall_at_8": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.9529,
+        "min": 0.952,
+        "max": 0.9538
+      }
+    },
+    "retrieval_precision_at_5": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.8782,
+        "min": 0.8739,
+        "max": 0.8826
+      }
+    },
+    "answer_accuracy": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.98,
+        "min": 0.98,
+        "max": 0.98
+      }
+    },
+    "groundedness": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.9989,
+        "min": 0.9978,
+        "max": 1.0
+      }
+    },
+    "hallucination_rate": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.01,
+        "min": 0.0,
+        "max": 0.02
+      }
+    },
+    "relevance": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.985,
+        "min": 0.98,
+        "max": 0.99
+      }
+    },
+    "expected_tool_used_rate": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.8334,
+        "min": 0.75,
+        "max": 0.9167
+      }
+    },
+    "avg_latency_ms": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 5306,
+        "min": 4677,
+        "max": 5935
+      }
+    },
+    "avg_cost_usd": {
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.0008,
+        "min": 0.0007,
+        "max": 0.0008
+      }
+    }
+  },
+  "by_type": {
+    "comparison": {
+      "questions": 9,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.9444,
+        "min": 0.9444,
+        "max": 0.9444
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": 1.0
+      }
+    },
+    "factual": {
+      "questions": 8,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": 1.0
+      }
+    },
+    "no_answer": {
+      "questions": 4,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": null
+      }
+    },
+    "opinion": {
+      "questions": 8,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 0.9375,
+        "min": 0.9375,
+        "max": 0.9375
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": 1.0
+      }
+    },
+    "plot": {
+      "questions": 8,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": 1.0
+      }
+    },
+    "rating": {
+      "questions": 7,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": 1.0
+      }
+    },
+    "recommendation": {
+      "questions": 6,
+      "vector": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "hybrid": {
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "recall_at_5": {
+        "vector": null,
+        "hybrid": 0.7181
+      }
+    }
+  },
+  "plan_fields": {
+    "vector": {
+      "strategy": "vector",
+      "retrieval_recall_at_5": null,
+      "answer_accuracy": null,
+      "groundedness": null,
+      "avg_latency_ms": null,
+      "avg_cost_usd": null
+    },
+    "hybrid": {
+      "strategy": "hybrid",
+      "retrieval_recall_at_5": 0.9632,
+      "answer_accuracy": 0.98,
+      "groundedness": 0.9989,
+      "avg_latency_ms": 5306,
+      "avg_cost_usd": 0.0008
+    }
+  },
+  "questions": {
+    "F1": {
+      "type": "factual",
+      "question": "Who directed Interstellar?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F2": {
+      "type": "factual",
+      "question": "Who directed Get Out?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F3": {
+      "type": "factual",
+      "question": "Who directed Mad Max: Fury Road?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F4": {
+      "type": "factual",
+      "question": "In what year was Groundhog Day released?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F5": {
+      "type": "factual",
+      "question": "Who directed Hereditary?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F6": {
+      "type": "factual",
+      "question": "Who directed the 2015 film Room?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F7": {
+      "type": "factual",
+      "question": "Who directed The Shape of Water?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "F8": {
+      "type": "factual",
+      "question": "Which war film from 2017 did Christopher Nolan direct?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R1": {
+      "type": "rating",
+      "question": "What is the IMDb rating of The Dark Knight?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R2": {
+      "type": "rating",
+      "question": "Which is rated higher on IMDb, Inception or Interstellar?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R3": {
+      "type": "rating",
+      "question": "Which has the higher IMDb rating, Alien or Aliens?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R4": {
+      "type": "rating",
+      "question": "What is the critics' average score for Whiplash in this database?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R5": {
+      "type": "rating",
+      "question": "What is the critics' average score for Suicide Squad?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R6": {
+      "type": "rating",
+      "question": "Is Heat rated higher than Joker on IMDb?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "R7": {
+      "type": "rating",
+      "question": "Which is rated higher, Logan or Deadpool?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O1": {
+      "type": "opinion",
+      "question": "What do critics praise about Mad Max: Fury Road?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O2": {
+      "type": "opinion",
+      "question": "What did critics dislike about Suicide Squad?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O3": {
+      "type": "opinion",
+      "question": "What do critics say about Heath Ledger's performance in The Dark Knight?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O4": {
+      "type": "opinion",
+      "question": "What do critics say about Joaquin Phoenix in Joker?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O5": {
+      "type": "opinion",
+      "question": "What do reviewers think of the visuals in Avatar?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          0.5
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O6": {
+      "type": "opinion",
+      "question": "What are the main criticisms of Batman v Superman: Dawn of Justice?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O7": {
+      "type": "opinion",
+      "question": "Do critics think Gravity is worth seeing?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "O8": {
+      "type": "opinion",
+      "question": "What do critics say about the music in La La Land?",
+      "hybrid": {
+        "correctness": [
+          0.5,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P1": {
+      "type": "plot",
+      "question": "Which film follows a family that must stay silent to survive creatures that hunt by sound?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P2": {
+      "type": "plot",
+      "question": "Which movie is about a young con artist who poses as a pilot and a doctor while an FBI agent chases him?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P3": {
+      "type": "plot",
+      "question": "Which film is about a cowboy doll who feels replaced by a new space ranger toy?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P4": {
+      "type": "plot",
+      "question": "Which movie tells of a mute cleaning woman who falls in love with an amphibian creature held in a government lab?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P5": {
+      "type": "plot",
+      "question": "Which film is about a lonely writer who falls in love with his computer's operating system?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P6": {
+      "type": "plot",
+      "question": "Which movie follows a programmer invited to test whether a humanoid robot is truly conscious?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P7": {
+      "type": "plot",
+      "question": "Which film follows journalists uncovering child abuse covered up by the Catholic Church in Boston?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "P8": {
+      "type": "plot",
+      "question": "Which movie is about a young woman and her son held captive in a small shed for years?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "C1": {
+      "type": "recommendation",
+      "question": "Recommend some animated family films rated 8 or higher.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "C2": {
+      "type": "recommendation",
+      "question": "Suggest war movies released since 2010.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "C3": {
+      "type": "recommendation",
+      "question": "Any good horror films from 2015 onwards rated at least 7?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "C4": {
+      "type": "recommendation",
+      "question": "I want a music-themed movie with an IMDb rating of 8 or higher.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "C5": {
+      "type": "recommendation",
+      "question": "Recommend crime thrillers from 2010 or later rated 8 or higher.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "C6": {
+      "type": "recommendation",
+      "question": "Which science fiction films from the 2010s are rated 8 or higher on IMDb?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M1": {
+      "type": "comparison",
+      "question": "Compare Arrival and Interstellar as science-fiction films.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M2": {
+      "type": "comparison",
+      "question": "How do critics compare Get Out and Us, both directed by Jordan Peele?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M3": {
+      "type": "comparison",
+      "question": "Compare Whiplash and La La Land, both by Damien Chazelle.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M4": {
+      "type": "comparison",
+      "question": "Is Black Swan more disturbing than Hereditary?",
+      "hybrid": {
+        "correctness": [
+          0.5,
+          0.5
+        ],
+        "hallucination": [
+          false,
+          true
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M5": {
+      "type": "comparison",
+      "question": "Compare Heat and Nightcrawler as crime films.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M6": {
+      "type": "comparison",
+      "question": "Which do critics like more, Up or Inside Out?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M7": {
+      "type": "comparison",
+      "question": "Compare Gravity with The Martian as survival-in-space films.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M8": {
+      "type": "comparison",
+      "question": "How does Ex Machina compare to Her as films about artificial intelligence?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "M9": {
+      "type": "comparison",
+      "question": "Compare Dunkirk and 1917 as war films.",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "N1": {
+      "type": "no_answer",
+      "question": "Who directed The Shawshank Redemption?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "N2": {
+      "type": "no_answer",
+      "question": "What did critics think of Oppenheimer (2023)?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "N3": {
+      "type": "no_answer",
+      "question": "What is the IMDb rating of The Matrix?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    },
+    "N4": {
+      "type": "no_answer",
+      "question": "What do critics say about Parasite (2019)?",
+      "hybrid": {
+        "correctness": [
+          1.0,
+          1.0
+        ],
+        "hallucination": [
+          false,
+          false
+        ],
+        "warnings": 0,
+        "errors": []
+      }
+    }
+  },
+  "costs": {
+    "vector": {
+      "system_usd": 0,
+      "judge_usd": 0
+    },
+    "hybrid": {
+      "system_usd": 0.075,
+      "judge_usd": 0.5331
+    }
+  },
+  "citations": {
+    "vector": {
+      "answers_with_citation": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "invalid": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "precision": {
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "sent_precision": {
+        "mean": null,
+        "min": null,
+        "max": null
+      }
+    },
+    "hybrid": {
+      "answers_with_citation": {
+        "mean": 38,
+        "min": 37,
+        "max": 40
+      },
+      "invalid": {
+        "mean": 0,
+        "min": 0,
+        "max": 0
+      },
+      "precision": {
+        "mean": 0.949,
+        "min": 0.9486,
+        "max": 0.9494
+      },
+      "sent_precision": {
+        "mean": 0.8301,
+        "min": 0.8261,
+        "max": 0.8342
+      }
+    }
+  }
+}
