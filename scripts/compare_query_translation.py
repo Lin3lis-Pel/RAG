@@ -6,7 +6,7 @@
 - translated+r:   semantic_query from translation with reasoning on
 
 A question is a hit@k when one of the top k chunks belongs to the expected film.
-Small and directional, not the Phase 20 evaluation. About 80 small API calls.
+Small and directional, not the evaluation. About 80 small API calls.
 
 Run from the repo root (backend venv active): python scripts/compare_query_translation.py
 """

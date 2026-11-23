@@ -1,4 +1,4 @@
-"""Phase 24: the MCP server on its own, over a real stdio subprocess, and connected to the LangChain tool loop.
+"""The MCP server on its own, over a real stdio subprocess, and connected to the LangChain tool loop.
 
 The server is tested the way the plan asks (24.2): MCP client -> MCP tool -> database result, without the chatbot.
 Database tests skip when the local database is down (the `session` fixture), like the rest of the suite.

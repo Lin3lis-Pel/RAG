@@ -17,7 +17,7 @@ from app import rag
 pytestmark = pytest.mark.live
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-import injection_tests  # noqa: E402  (the Phase 16 attacks, reused as tests)
+import injection_tests  # noqa: E402  (the prompt-injection attacks, reused as tests)
 
 SAYS_NOT_IN_DATA = re.compile(
     r"not (in|part of|included in|available in) (the|this|our)|(isn't|is not|aren't|are not) in (the|this|our)|"
@@ -60,7 +60,7 @@ def test_a_vague_question_is_answered_about_the_intended_film(question, film, se
     assert film in rag.answer_question(question, session).answer
 
 
-# Implements: specs/28.md#AC-009, #AC-007 (the 8 live attacks of Phase 16, one test each)
+# Implements: specs/28.md#AC-009, #AC-007 (the 8 live attacks, one test each)
 @pytest.mark.security
 @pytest.mark.parametrize("attack", injection_tests.ATTACKS, ids=[a["id"] for a in injection_tests.ATTACKS])
 def test_live_prompt_injection_attack_is_defended(attack, session):

@@ -1,5 +1,5 @@
 """Alembic environment. The database URL comes from app settings (DATABASE_URL), never from alembic.ini,
-so the same migrations run against local Docker now and Cloud SQL in Phase 22.
+so the same migrations run against local Docker and the deployed database.
 """
 
 from logging.config import fileConfig

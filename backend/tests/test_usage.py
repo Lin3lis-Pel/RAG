@@ -1,4 +1,4 @@
-"""Token usage and cost (Phase 14). A fake chat model reports known tokens and costs: no API calls."""
+"""Token usage and cost. A fake chat model reports known tokens and costs: no API calls."""
 
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel

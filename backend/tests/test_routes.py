@@ -40,7 +40,7 @@ def api_without_working_database(api):
 
 
 def conversation(api) -> str:
-    return api.post("/api/conversations").json()["id"]
+    return api.post("/api/chat", json={"message": "hello"}).json()["conversation_id"]
 
 
 # Implements: specs/28.md#AC-002 (success, one per route)
@@ -48,9 +48,7 @@ def conversation(api) -> str:
     ("GET", "/api/health", None, 200),
     ("POST", "/api/chat", {"message": "Who directed Prisoners?"}, 200),
     ("POST", "/api/chat/stream", {"message": "Who directed Prisoners?"}, 200),
-    ("POST", "/api/conversations", None, 201),
     ("GET", "/api/conversations/{id}", None, 200),
-    ("POST", "/api/conversations/{id}/messages", {"message": "hello"}, 200),
 ])
 def test_each_route_succeeds(api, method, path, body, status):
     url = path.replace("{id}", conversation(api)) if "{id}" in path else path
@@ -68,7 +66,8 @@ def test_each_route_succeeds(api, method, path, body, status):
     ("POST", "/api/chat", {"message": ""}, 422, "INVALID_INPUT"),
     ("POST", "/api/chat/stream", {"message": "x" * 2001}, 422, "INVALID_INPUT"),
     ("GET", "/api/conversations/{unknown}", None, 404, "CONVERSATION_NOT_FOUND"),
-    ("POST", "/api/conversations/not-a-uuid/messages", {"message": "hello"}, 422, "INVALID_INPUT"),
+    ("GET", "/api/conversations/not-a-uuid", None, 422, "INVALID_INPUT"),
+    ("POST", "/api/conversations", None, 404, "NOT_FOUND"),
 ])
 def test_each_route_rejects_bad_requests(api, method, path, body, status, code):
     response = api.request(method, path.replace("{unknown}", str(uuid.uuid4())), json=body)
@@ -77,9 +76,9 @@ def test_each_route_rejects_bad_requests(api, method, path, body, status, code):
     assert response.json()["error"]["code"] == code
 
 
-# Implements: specs/28.md#AC-002 (POST /api/conversations fails cleanly when the database does)
-def test_creating_a_conversation_without_a_database_is_database_unavailable(api_without_working_database):
-    response = api_without_working_database.post("/api/conversations")
+# Implements: specs/28.md#AC-002 (fails cleanly when the database does)
+def test_reading_a_conversation_without_a_database_is_database_unavailable(api_without_working_database):
+    response = api_without_working_database.get(f"/api/conversations/{uuid.uuid4()}")
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "DATABASE_UNAVAILABLE"

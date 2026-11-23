@@ -1,4 +1,4 @@
-"""Phase 29: questions naming two or more films are retrieved per film, each with an equal share of the chunks.
+"""Questions naming two or more films are retrieved per film, each with an equal share of the chunks.
 
 The real retrieval on the real (rolled-back) database; translation and embedding are replayed or faked, the answer
 model is left out (we check what it would be given).

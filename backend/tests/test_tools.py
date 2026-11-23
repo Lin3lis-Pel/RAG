@@ -73,7 +73,6 @@ def test_ac004_invalid_arguments_return_a_structured_error_without_querying(call
 def test_ac008_langchain_tools_have_plan_names_and_schemas():
     built = {t.name: t for t in tools.langchain_tools(NoDatabase())}
 
-    # Phase 24 added get_movie_metadata to the plan's three tools.
     assert set(built) == {"filter_movies", "compare_movies", "rating_summary", "get_movie_metadata"}
     assert built["filter_movies"].args_schema is FilterMoviesInput
     assert built["compare_movies"].args_schema is CompareMoviesInput

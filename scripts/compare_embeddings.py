@@ -12,7 +12,7 @@ Variants:
                          (Matryoshka) so a prefix of the vector still works; 1,536 is what our vector(1536) column holds.
 
 The Qwen document vectors are cached in data/experiments/ (git-ignored), so a re-run does not pay again.
-This is a small, directional comparison, not the Phase 20 evaluation.
+This is a small, directional comparison, not the evaluation.
 
 Run from the repo root (backend venv active):
     python scripts/compare_embeddings.py --dry-run     # plan only

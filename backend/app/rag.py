@@ -1,4 +1,4 @@
-"""Retrieval-augmented generation (Phase 6): question -> retrieved chunks -> grounded answer.
+"""Retrieval-augmented generation: question -> retrieved chunks -> grounded answer.
 
 RAG lets the model answer from our data instead of its memory: we find the chunks most related to the
 question and put them in the prompt, with instructions to answer only from them. The model's job becomes
@@ -19,7 +19,7 @@ from time import perf_counter
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from sqlalchemy.orm import Session
 
-from app import deadline, embeddings, fusion, mcp_client, query_translation, retrieval, tool_calling, tools
+from app import citations, deadline, embeddings, fusion, mcp_client, query_translation, retrieval, tool_calling, tools
 from app.config import get_settings
 from app.errors import AppError
 from app.fusion import FusedChunk
@@ -38,7 +38,9 @@ excerpts from film critics' reviews and movie descriptions, retrieved from a dat
   gaps from memory.
 - If they do not contain enough information to answer, say there is not enough information in the available
   reviews, and say what is missing.
-- When you use a source, name the movie and, for a review, the critic.
+- When you use a source, name the movie and, for a review, the critic. After every claim, quote or opinion taken
+  from a source, cite it with its chunk_id in square brackets, like [2281] or [2281, 2290]. Cite only chunk_ids
+  of sources in the current message, and only for sources you used. Facts from a tool result need no citation.
 - Report what the critics and the data say; do not add a verdict of your own. If the user asks which film is better,
   scarier, funnier or similar, answer with what the reviews and tool results show (quotes, critic averages, ratings),
   and if they do not settle it, say so rather than deciding yourself.
@@ -68,7 +70,7 @@ def _label(chunk: RetrievedChunk) -> str:
 
 # Implements: specs/6.md#AC-003
 def build_messages(question: str, chunks: list[RetrievedChunk], history: list[Turn] | None = None) -> list[BaseMessage]:
-    """System rules, then earlier turns of the conversation (Phase 11), then this question with its sources.
+    """System rules, then earlier turns of the conversation, then this question with its sources.
     Earlier turns carry only the text of the questions and answers; their sources are not resent."""
     sources = "\n\n".join(
         f'<source chunk_id="{chunk.id}" movie="{escape(_label(chunk))}">\n'
@@ -82,10 +84,10 @@ def build_messages(question: str, chunks: list[RetrievedChunk], history: list[Tu
 
 @dataclass
 class RagDebug:
-    """What the pipeline did for one question (Phase 12), for the "RAG process" panel.
+    """What the pipeline did for one question, for the "RAG process" panel.
 
-    vector_results are the chunks vector search returned, nearest first; keyword_results the full-text matches
-    (Phase 17); fused the hybrid ranking of both (Phase 18); selected_chunk_ids the ones sent to the model.
+    vector_results are the chunks vector search returned, nearest first; keyword_results the full-text matches;
+    fused the hybrid ranking of both; selected_chunk_ids the ones sent to the model.
     """
 
     original_query: str
@@ -97,25 +99,31 @@ class RagDebug:
     keyword_results: list[RetrievedChunk] = field(default_factory=list)
     strategy: str = "vector"
     fused: list[FusedChunk] = field(default_factory=list)
-    tool_backend: str = "local"  # Phase 24: "mcp" or "local"
-    # Phase 27: parts that failed while the answer could still be produced (shown under the answer, logged)
+    tool_backend: str = "local"  # "mcp" or "local"
+    # Parts that failed while the answer could still be produced (shown under the answer, logged)
     warnings: list[str] = field(default_factory=list)
-    # Phase 29: the films retrieved separately, when the question names two or more (empty: one search for all)
+    # The films retrieved separately, when the question names two or more (empty: one search for all)
     per_film: list[str] = field(default_factory=list)
+    # Genre, year or rating limits from query translation were applied to both searches
+    filters_applied: bool = False
+    # Ids the model cited that were not among the chunks it was given (removed from the answer)
+    invalid_citations: list[str] = field(default_factory=list)
 
 
 @dataclass
 class RagAnswer:
     answer: str
-    # Phase 8: every chunk the model was given, in ranking order. These are exactly the texts the answer
+    # Every chunk the model was given, in ranking order. These are exactly the texts the answer
     # had to come from, so showing all of them is an honest record of what it was based on.
     sources: list[RetrievedChunk] = field(default_factory=list)
-    # Phase 10: every tool call the model made, with arguments and result.
+    # Every tool call the model made, with arguments and result.
     tool_calls: list[ToolCallRecord] = field(default_factory=list)
-    # Phase 12: how the answer was produced.
+    # How the answer was produced.
     debug: RagDebug | None = None
-    # Phase 14: tokens and cost per model, for every call made while answering.
+    # Tokens and cost per model, for every call made while answering.
     usage: list[ModelUsage] = field(default_factory=list)
+    # The ids of the sources the answer cites, in the order first cited (checked, app/citations.py).
+    cited_ids: list[int] = field(default_factory=list)
 
 
 def _ms_since(start: float) -> int:
@@ -126,10 +134,10 @@ def _ms_since(start: float) -> int:
 def answer_question(
     question: str, session: Session, history: list[Turn] | None = None, on_event: Callable[[dict], None] | None = None
 ) -> RagAnswer:
-    """on_event (Phase 25, streaming): receives progress ("status"), answer text ("token") and tool results
+    """on_event (streaming): receives progress ("status"), answer text ("token") and tool results
     ("tool_call") as they happen. Without it the answer is produced in one piece, as before."""
-    # Phase 14: every model call inside this block (translation, answer rounds, embedding) is counted.
-    # Phase 27: and the whole question has one time limit (app/deadline.py).
+    # Every model call inside this block (translation, answer rounds, embedding) is counted.
+    # The whole question has one time limit (app/deadline.py).
     with track_usage() as tracker, deadline.limit(get_settings().chat_timeout_s):
         result = _answer(question, session, history, on_event)
     result.usage = list(tracker.models.values())
@@ -153,13 +161,13 @@ def _answer(
 
     status("translation", "Understanding the question")
 
-    # Phase 7: search with the rewritten query, but answer the question the user actually asked.
-    # Phase 11: the translator sees recent history, so "compare it with Zodiac" becomes a stand-alone search.
+    # Search with the rewritten query, but answer the question the user actually asked.
+    # The translator sees recent history, so "compare it with Zodiac" becomes a stand-alone search.
     step = perf_counter()
     translation = query_translation.translate_query(question, history)
     timings["translation"] = _ms_since(step)
 
-    # Phase 18: hybrid takes HYBRID_CANDIDATES (10) from each search and fuses them; vector takes the top K directly.
+    # Hybrid takes HYBRID_CANDIDATES (10) from each search and fuses them; vector takes the top K directly.
     # Implements: specs/18.md#AC-001
     settings = get_settings()
     hybrid = settings.retrieval_strategy == "hybrid"
@@ -170,7 +178,7 @@ def _answer(
     strategy = settings.retrieval_strategy
 
     def no_embedding(exc: AppError) -> None:
-        # Phase 27: without an embedding there is no vector search, but keyword search still works. Answer from it
+        # Without an embedding there is no vector search, but keyword search still works. Answer from it
         # when the question has keywords; otherwise there is nothing to search with, and the error stands.
         nonlocal strategy
         if not exc.code.startswith("EMBEDDING_") or not translation.keywords:
@@ -178,7 +186,7 @@ def _answer(
         strategy = "hybrid"  # fusing one list = the keyword ranking
         warn(f"Semantic search was unavailable ({exc.code}), so this answer is based on keyword search only.")
 
-    # Phase 29: a question naming two or more films in the data ("Compare Gravity with The Martian") is retrieved per
+    # A question naming two or more films in the data ("Compare Gravity with The Martian") is retrieved per
     # film, each with an equal share of the chunks. One search over everything let the film with more matching
     # reviews, and keyword noise, crowd out the other (measured: hybrid comparisons 0.65 vs vector 0.76).
     per_film = retrieval.named_movies(session, translation.movies) if len(translation.movies) >= 2 else []
@@ -186,17 +194,32 @@ def _answer(
         per_film = []
 
     step = perf_counter()
+    filters_applied = False
     if not per_film:
-        try:
-            vector_chunks = retrieval.retrieve(translation.semantic_query, session, k=candidates)  # embed, pgvector
-        except AppError as exc:
-            no_embedding(exc)
-            vector_chunks = []
-        timings["embedding_and_search"] = _ms_since(step)
+        # Limits the user stated ("a thriller from the 2010s") narrow both searches. Not when the question names a
+        # film: the translation model sometimes derives a genre or year from that film, and a wrong one would hide
+        # exactly the chunks the question needs.
+        filters_applied = not translation.movies and not translation.filters.is_empty()
 
-        step = perf_counter()
-        keyword_chunks = retrieval.keyword_search(session, translation.keywords, k=candidates)
-        timings["keyword_search"] = _ms_since(step)
+        def search_both(**limits) -> tuple[list[RetrievedChunk], list[RetrievedChunk]]:
+            step = perf_counter()
+            try:
+                vector = retrieval.retrieve(translation.semantic_query, session, k=candidates, **limits)  # embed, pgvector
+            except AppError as exc:
+                no_embedding(exc)
+                vector = []
+            timings["embedding_and_search"] = timings.get("embedding_and_search", 0) + _ms_since(step)
+            step = perf_counter()
+            keyword = retrieval.keyword_search(session, translation.keywords, k=candidates, **limits)
+            timings["keyword_search"] = timings.get("keyword_search", 0) + _ms_since(step)
+            return vector, keyword
+
+        vector_chunks, keyword_chunks = search_both(**({"filters": translation.filters} if filters_applied else {}))
+        if filters_applied and not vector_chunks and not keyword_chunks:
+            filters_applied = False
+            warn(f"Nothing in the data matches all of the limits in the question ({translation.filters.describe()}), "
+                 "so the search ignored them.")
+            vector_chunks, keyword_chunks = search_both()
         deadline.check()
         selection = fusion.select(vector_chunks, keyword_chunks, strategy, settings.retrieval_top_k, k=settings.rrf_k)
         chunks = selection.chunks  # what the model receives and what `sources` lists
@@ -238,19 +261,20 @@ def _answer(
             tool_backend=tool_backend,
             warnings=warnings,
             per_film=[label for label, _ in per_film],
+            filters_applied=filters_applied,
         )
 
     if not chunks:
         return RagAnswer(answer=NO_RESULTS_ANSWER, debug=debug())
 
-    # Phase 10: the model gets the sources and the tools together and decides itself whether to call one.
-    # Phase 24: by default the tools are the MCP server's, discovered through the MCP client.
+    # The model gets the sources and the tools together and decides itself whether to call one.
+    # By default the tools are the MCP server's, discovered through the MCP client.
     step = perf_counter()
     messages = build_messages(question, chunks, history)
     mcp_down = "The MCP tool server was unavailable, so the movie tools ran inside the backend instead."
 
     def run_locally(name: str, arguments: dict) -> dict:
-        # Phase 27: an MCP call that fails mid-answer is run in-process instead, with the same function.
+        # An MCP call that fails mid-answer is run in-process instead, with the same function.
         nonlocal tool_backend
         tool_backend = "mcp, then local"  # some calls may have gone through MCP before it failed
         warn(mcp_down)
@@ -263,7 +287,7 @@ def _answer(
         except AppError as exc:
             if exc.code != "MCP_UNAVAILABLE":
                 raise
-            tool_backend = "local"  # Phase 27: the server did not start; same tools, in-process
+            tool_backend = "local"  # The server did not start; same tools, in-process
             warn(mcp_down)
     if tool_list is None:
         tool_list = tools.langchain_tools(session)
@@ -280,7 +304,12 @@ def _answer(
         answer, tool_calls = tool_calling.run_with_tools(messages, tool_list, on_event=forward)
     timings["generation"] = _ms_since(step)  # includes any tool calls and the extra model rounds they cause
 
-    return RagAnswer(answer=answer, sources=chunks, tool_calls=tool_calls, debug=debug())
+    checked = citations.check(answer, [c.id for c in chunks])
+    details = debug()
+    details.invalid_citations = checked.invalid
+    return RagAnswer(
+        answer=checked.text, sources=chunks, cited_ids=checked.cited, tool_calls=tool_calls, debug=details
+    )
 
 
 def _shares(total: int, parts: int) -> list[int]:

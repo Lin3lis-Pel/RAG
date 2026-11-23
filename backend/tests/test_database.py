@@ -1,4 +1,4 @@
-"""Phase 3 database checks against the real local PostgreSQL (docker compose up -d, alembic upgrade head).
+"""Database checks against the real local PostgreSQL (docker compose up -d, alembic upgrade head).
 
 Each test runs inside a transaction that is rolled back (see conftest.session), so nothing is left behind.
 """
@@ -8,7 +8,7 @@ from sqlalchemy import inspect, select, text
 
 from app.models import Movie, RagChunk
 
-DIMS = 1536  # rag_chunks.embedding is vector(1536) since Phase 5
+DIMS = 1536  # rag_chunks.embedding is vector(1536)
 
 
 def toy_vector(*values: float) -> list[float]:

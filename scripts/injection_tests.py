@@ -1,4 +1,4 @@
-"""Phase 16: attack the prompt-injection defences with the real models and record what holds.
+"""Attack the prompt-injection defences with the real models and record what holds.
 
 Two kinds of attack:
 - Poisoned reviews: a fake critic review of Prisoners hiding an instruction is inserted and embedded for real, so
@@ -127,7 +127,7 @@ ATTACKS = [
 
 def run_attack(session: Session, attack: dict, vector: list[float] | None = None) -> dict:
     """One attack inside the caller's transaction: insert its poisoned review (if any), ask, check, remove the review.
-    Also used by backend/tests/test_live.py (Phase 28), so `pytest -m live` runs the same attacks."""
+    Also used by backend/tests/test_live.py, so `pytest -m live` runs the same attacks."""
     chunk = None
     if "poison" in attack:
         movie_id = session.execute(text("SELECT id FROM movies WHERE title = 'Prisoners'")).scalar_one()

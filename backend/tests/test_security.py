@@ -1,4 +1,4 @@
-"""Phase 16: security checks that do not need a live model. (Live attacks: scripts/injection_tests.py.)
+"""Security checks that do not need a live model. (Live attacks: scripts/injection_tests.py.)
 
 Error messages from providers and the database can contain secrets or internals (a key echoed back, a connection
 string). They must be replaced by our fixed messages before anything reaches the user.

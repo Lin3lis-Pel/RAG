@@ -1,4 +1,4 @@
-"""Conversation history (Phase 11): store each question and answer, and feed recent turns back in.
+"""Conversation history: store each question and answer, and feed recent turns back in.
 
 A chat model has no memory between requests; every call starts blank. "Now compare it with Zodiac" only makes
 sense if the earlier messages are sent along. So each exchange is saved in PostgreSQL, and the most recent

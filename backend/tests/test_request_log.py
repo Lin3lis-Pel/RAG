@@ -1,4 +1,4 @@
-"""Logging and monitoring (Phase 15). The pipeline is faked; the log goes to a temporary file (conftest)."""
+"""Logging and monitoring. The pipeline is faked; the log goes to a temporary file (conftest)."""
 
 import json
 

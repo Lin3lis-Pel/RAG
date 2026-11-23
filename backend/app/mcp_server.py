@@ -1,6 +1,6 @@
-"""The MCP server (Phase 24): the movie tools behind the Model Context Protocol.
+"""The MCP server: the movie tools behind the Model Context Protocol.
 
-Tool calling (Phase 10) is the model asking *our code* to run a function. MCP is a standard way to put those
+Tool calling is the model asking *our code* to run a function. MCP is a standard way to put those
 functions in a separate program, a server, so that any MCP client can discover and call them: our backend,
 Claude Desktop, the MCP Inspector. The protocol is JSON-RPC: the client asks `tools/list` (names, descriptions,
 input schemas) and then `tools/call` (a name and arguments); the server runs the tool and returns the result.
@@ -9,7 +9,7 @@ Here the transport is stdio: the client starts this file as a child process and 
 its stdin and stdout. So nothing may ever be printed to stdout here; logs go to stderr.
 
 The server advertises exactly the Pydantic schemas in app/tools.py and runs exactly the same functions, so the
-model sees the same tools as before Phase 24. The server is the trust boundary: it validates every call itself
+model sees the same tools either way. The server is the trust boundary: it validates every call itself
 (any client could send anything) and returns our structured errors (INVALID_ARGUMENTS, MOVIE_NOT_FOUND, ...) as
 the result, marked `is_error`, rather than crashing.
 

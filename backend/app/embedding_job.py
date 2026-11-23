@@ -1,4 +1,4 @@
-"""Batch job that embeds RAG chunks (Phase 5). The command-line entry point is scripts/embed_chunks.py.
+"""Batch job that embeds RAG chunks. The command-line entry point is scripts/embed_chunks.py.
 
 Only chunks with no embedding yet are sent, so re-running after a failure or after re-ingestion pays only
 for new or changed chunks. Each batch is embedded, checked, and saved before the next one starts, so a

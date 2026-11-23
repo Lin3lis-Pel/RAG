@@ -1,6 +1,6 @@
 """full-text search on chunks: generated tsvector column and GIN index
 
-Keyword search (Phase 17) uses PostgreSQL's built-in full-text search instead of a separate search engine.
+Keyword search uses PostgreSQL's built-in full-text search instead of a separate search engine.
 
 - search_vector holds each chunk's text as a tsvector: the words reduced to their stems ("Thrillers" -> "thriller"),
   common words dropped, positions kept so phrases like "Hugh Jackman" can be matched in order.

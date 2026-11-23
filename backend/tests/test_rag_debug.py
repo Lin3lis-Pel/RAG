@@ -1,4 +1,4 @@
-"""RAG visualisation (Phase 12): the debug object. Translation, retrieval and the model are faked: no API calls."""
+"""RAG visualisation: the debug object. Translation, retrieval and the model are faked: no API calls."""
 
 import pytest
 
@@ -29,8 +29,8 @@ TRANSLATION = TranslatedQuery(
 @pytest.fixture
 def pipeline(monkeypatch):
     monkeypatch.setattr(query_translation, "translate_query", lambda message, history=None: TRANSLATION)
-    monkeypatch.setattr(retrieval, "retrieve", lambda query, session, k=None: list(CHUNKS))
-    monkeypatch.setattr(retrieval, "keyword_search", lambda session, keywords, k=None: list(KEYWORD_CHUNKS))
+    monkeypatch.setattr(retrieval, "retrieve", lambda query, session, k=None, filters=None: list(CHUNKS))
+    monkeypatch.setattr(retrieval, "keyword_search", lambda session, keywords, k=None, filters=None: list(KEYWORD_CHUNKS))
     monkeypatch.setattr(tool_calling, "run_with_tools", lambda messages, tool_list: ("Very tense.", []))
 
 
@@ -54,8 +54,8 @@ def test_debug_records_what_each_step_did(pipeline):
 
 def test_no_results_still_explains_what_happened(monkeypatch):
     monkeypatch.setattr(query_translation, "translate_query", lambda message, history=None: TRANSLATION)
-    monkeypatch.setattr(retrieval, "retrieve", lambda query, session, k=None: [])
-    monkeypatch.setattr(retrieval, "keyword_search", lambda session, keywords, k=None: [])
+    monkeypatch.setattr(retrieval, "retrieve", lambda query, session, k=None, filters=None: [])
+    monkeypatch.setattr(retrieval, "keyword_search", lambda session, keywords, k=None, filters=None: [])
 
     result = rag.answer_question("anything?", session=None)
 

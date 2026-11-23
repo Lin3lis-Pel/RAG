@@ -81,7 +81,7 @@ class RagChunk(Base):
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
-        # Phase 17 keyword search: GIN index over the generated tsvector (migration 0004).
+        # Keyword search: GIN index over the generated tsvector (migration 0004).
         Index("ix_rag_chunks_search_vector", "search_vector", postgresql_using="gin"),
     )
 
@@ -92,7 +92,7 @@ class RagChunk(Base):
     # migration to the new size and re-embedding every chunk.
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, server_default=text("'{}'::jsonb"))
-    # Phase 17: computed by PostgreSQL from content (stems + positions) for full-text keyword search.
+    # Computed by PostgreSQL from content (stems + positions) for full-text keyword search.
     search_vector: Mapped[str | None] = mapped_column(
         TSVECTOR, Computed("to_tsvector('english'::regconfig, content)", persisted=True)
     )

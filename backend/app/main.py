@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app import history, mcp_client, rag, rate_limit, request_log, streaming
+from app import citations, history, mcp_client, rag, rate_limit, request_log, streaming
 from app.config import get_settings
 from app.db import get_session
 from app.errors import AppError, ClientDisconnected, register_error_handlers
@@ -23,12 +23,13 @@ from app.schemas import (
     ChatRequest,
     ChatResponse,
     ConversationOut,
+    ErrorResponse,
     FusedResult,
     KeywordResult,
-    MessageRequest,
     RagDebugOut,
     Source,
     StoredMessage,
+    StreamEvent,
     ModelUsageOut,
     ToolCall,
     Usage,
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Phase 24: start the MCP server with the backend, so the first question does not wait for it, and stop it on
+    """Start the MCP server with the backend, so the first question does not wait for it, and stop it on
     shutdown. If it cannot start now, the backend still runs and the first tool use tries again."""
     if settings.tool_backend == "mcp":
         try:
@@ -54,7 +55,12 @@ async def lifespan(app: FastAPI):
         await run_in_threadpool(mcp_client.get_mcp_client().close)
 
 
-app = FastAPI(title="Movie Research Copilot", lifespan=lifespan)
+app = FastAPI(
+    title="Movie Research Copilot",
+    lifespan=lifespan,
+    # Every error has this shape (register_error_handlers), also the 422 that FastAPI would describe as its own.
+    responses={"default": {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
 register_error_handlers(app)
 
 # The Next.js dev server runs on another port, so the browser needs CORS to call this API.
@@ -64,6 +70,10 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+
+class EventStream(StreamingResponse):
+    media_type = "text/event-stream"
 
 
 class HealthResponse(BaseModel):
@@ -83,26 +93,20 @@ def chat(request: ChatRequest, session: Session = Depends(get_session)) -> ChatR
     return answer_in_conversation(session, request.conversation_id, request.message)
 
 
-# Phase 25: the same answer as /api/chat, sent as Server-Sent Events while it is produced (app/streaming.py).
+# The same answer as /api/chat, sent as Server-Sent Events while it is produced (app/streaming.py).
 # Invalid input is still rejected with the normal JSON error before the stream starts.
-@app.post("/api/chat/stream", dependencies=[Depends(rate_limit.check)])
+@app.post(
+    "/api/chat/stream", dependencies=[Depends(rate_limit.check)], response_class=EventStream,
+    responses={200: {"model": StreamEvent, "description": "One event per `data:` line"}},
+)
 async def chat_stream(request: ChatRequest, session: Session = Depends(get_session)) -> StreamingResponse:
     def run(emit):
         return answer_in_conversation(session, request.conversation_id, request.message, on_event=emit)
 
-    return StreamingResponse(
+    return EventStream(
         streaming.chat_events(run),
-        media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},  # no proxy may hold the events back
     )
-
-
-# Phase 11 conversation endpoints (the plan's proposed API). /api/chat stays the main entry point.
-@app.post("/api/conversations", response_model=ConversationOut, status_code=201)
-def create_conversation(session: Session = Depends(get_session)) -> ConversationOut:
-    conversation = history.get_or_create_conversation(session, None)
-    session.commit()
-    return ConversationOut(id=str(conversation.id), created_at=conversation.created_at)
 
 
 @app.get("/api/conversations/{conversation_id}", response_model=ConversationOut)
@@ -120,19 +124,12 @@ def get_conversation(conversation_id: UUID, session: Session = Depends(get_sessi
     )
 
 
-@app.post(
-    "/api/conversations/{conversation_id}/messages", response_model=ChatResponse, dependencies=[Depends(rate_limit.check)]
-)
-def post_message(conversation_id: UUID, request: MessageRequest, session: Session = Depends(get_session)) -> ChatResponse:
-    return answer_in_conversation(session, conversation_id, request.message)
-
-
 def answer_in_conversation(
     session: Session, conversation_id: UUID | None, message: str, on_event=None
 ) -> ChatResponse:
     """Load recent history, answer with it, then store the new question and answer together.
-    Phase 15: every request, answered or failed, writes one line to the request log.
-    Phase 25: on_event receives the streaming events; a closed stream stores nothing."""
+    Every request, answered or failed, writes one line to the request log.
+    on_event receives the streaming events; a closed stream stores nothing."""
     started = perf_counter()
     logged_id = str(conversation_id) if conversation_id else None
     try:
@@ -143,7 +140,8 @@ def answer_in_conversation(
             result = rag.answer_question(message, session, past)
         else:
             result = rag.answer_question(message, session, past, on_event=on_event)
-        history.save_exchange(session, conversation.id, message, result.answer)
+        # Without the citations: the ids belong to this question's sources, and a later question has other ones.
+        history.save_exchange(session, conversation.id, message, citations.strip(result.answer))
         session.commit()
     except ClientDisconnected:
         session.rollback()  # nothing of this exchange is kept
@@ -161,7 +159,7 @@ def answer_in_conversation(
     request_log.write(request_log.success_entry(logged_id, message, result, _ms_since(started)))
     return ChatResponse(
         answer=result.answer,
-        sources=[to_source(chunk) for chunk in result.sources],
+        sources=[to_source(chunk, cited=chunk.id in result.cited_ids) for chunk in result.sources],
         tool_calls=[ToolCall(tool=c.tool, arguments=c.arguments, result=c.result) for c in result.tool_calls],
         conversation_id=str(conversation.id),
         debug=to_debug(result.debug) if result.debug else None,
@@ -187,7 +185,7 @@ def to_usage(models: list[ModelUsage]) -> Usage:
         input_tokens=sum(m.input_tokens for m in by_model),
         output_tokens=sum(m.output_tokens for m in by_model),
         total_tokens=sum(m.total_tokens for m in by_model),
-        # Mostly OpenRouter's reported cost; the embedding part is an estimate, hence the plan's name.
+        # Mostly OpenRouter's reported cost; the embedding part is an estimate, hence the name.
         estimated_cost_usd=round(sum(m.cost_usd or 0.0 for m in by_model), 8),
         by_model=by_model,
     )
@@ -251,10 +249,12 @@ def to_debug(debug: rag.RagDebug) -> RagDebugOut:
         tool_backend=debug.tool_backend,
         warnings=debug.warnings,
         per_film=debug.per_film,
+        filters_applied=debug.filters_applied,
+        invalid_citations=debug.invalid_citations,
     )
 
 
-def to_source(chunk: RetrievedChunk) -> Source:
+def to_source(chunk: RetrievedChunk, cited: bool = False) -> Source:
     review_id = chunk.metadata.get("review_id")
     return Source(
         movie=chunk.movie_title,
@@ -266,4 +266,5 @@ def to_source(chunk: RetrievedChunk) -> Source:
         publication=chunk.metadata.get("publication"),
         url=chunk.url,
         excerpt=rag.excerpt(chunk),
+        cited=cited,
     )

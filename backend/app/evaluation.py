@@ -1,4 +1,4 @@
-"""RAG evaluation (Phase 20): run the dataset through the real system and measure what came back.
+"""RAG evaluation: run the dataset through the real system and measure what came back.
 
 How we know the system works, in three layers:
 
@@ -6,7 +6,8 @@ How we know the system works, in three layers:
    film reach the model (hit)? What share of the expected films is in the top 5 / 8 chunks (Recall@5, @8)? What
    share of the top 5 chunks belongs to an expected film (Precision@5)?
 2. Rule checks (no LLM). Does the answer contain an expected word ("Christopher Nolan")? Did the model use the
-   expected tool?
+   expected tool? Of the chunks the answer cites, what share is about an expected film (citation precision), next to
+   the same share of all chunks it was given?
 3. An LLM judge, for what rules cannot check. A different model (Claude Haiku, not the MiMo that answered) reads the
    question, the reference answer, the exact sources and tool results the system's model saw, and the answer, and
    returns: correctness (correct / partially / incorrect), relevance, and every factual claim marked supported or
@@ -29,7 +30,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from app import llm, rag
+from app import citations, llm, rag
 from app.errors import AppError
 from app.retrieval import RetrievedChunk
 from app.tool_calling import ToolCallRecord
@@ -71,11 +72,13 @@ def load_dataset(path: Path) -> list[EvalItem]:
 class RunRecord:
     answer: str
     chunks: list[RetrievedChunk] = field(default_factory=list)
+    cited_ids: list[int] = field(default_factory=list)
+    invalid_citations: list[str] = field(default_factory=list)
     tool_calls: list[ToolCallRecord] = field(default_factory=list)
     usage: list[ModelUsage] = field(default_factory=list)
     latency_ms: int = 0
     error: str | None = None
-    # Phase 29: so a fallback (keyword-only search, in-process tools) or a failed translation shows in the results
+    # So a fallback (keyword-only search, in-process tools) or a failed translation shows in the results
     warnings: list[str] = field(default_factory=list)
     translation_origin: str | None = None
     # Analytics: where the time went (translation, search, generation incl. tool rounds) and how much text was sent
@@ -107,7 +110,8 @@ def run_question(item: EvalItem, session: Session) -> RunRecord:
     except AppError as exc:
         return RunRecord(answer="", latency_ms=round((perf_counter() - started) * 1000), error=exc.code)
     return RunRecord(
-        answer=result.answer, chunks=result.sources, tool_calls=result.tool_calls, usage=result.usage,
+        answer=result.answer, chunks=result.sources, cited_ids=result.cited_ids, tool_calls=result.tool_calls,
+        usage=result.usage, invalid_citations=list(result.debug.invalid_citations) if result.debug else [],
         latency_ms=round((perf_counter() - started) * 1000),
         warnings=list(result.debug.warnings) if result.debug else [],
         translation_origin=result.debug.translation.origin if result.debug else None,
@@ -144,12 +148,27 @@ def retrieval_metrics(item: EvalItem, chunks: list[RetrievedChunk]) -> dict | No
 
 
 def rule_checks(item: EvalItem, rec: RunRecord) -> dict:
-    answer = rec.answer.lower()
+    answer = citations.strip(rec.answer).lower()
     used = {c.tool for c in rec.tool_calls}
     return {
         "must_contain_hit": any(w.lower() in answer for w in item.must_contain_any) if item.must_contain_any else None,
         "expected_tool_used": bool(used & set(item.expected_tool)) if item.expected_tool else None,
     }
+
+
+def citation_metrics(item: EvalItem, rec: RunRecord) -> dict:
+    """Of the cited chunks, the share about an expected film; and the same share of every chunk the model was given,
+    which is what the answer would score if it cited everything. None when there is nothing to measure."""
+    expected = set(item.acceptable_movies or item.expected_movies)
+    cited = [c for c in rec.chunks if c.id in set(rec.cited_ids)]
+
+    def precision(chunks: list[RetrievedChunk]) -> float | None:
+        if item.no_answer or not expected or not chunks:
+            return None
+        return round(sum(_film(c) in expected for c in chunks) / len(chunks), 3)
+
+    return {"cited": len(cited), "invalid": len(rec.invalid_citations),
+            "precision": precision(cited), "sent_precision": precision(rec.chunks)}
 
 
 # --- the judge ----------------------------------------------------------------------------------------------------
@@ -211,7 +230,7 @@ def build_judge_messages(item: EvalItem, rec: RunRecord) -> list[BaseMessage]:
         f"<question>\n{escape(item.question, quote=False)}\n</question>\n\n"
         f"<reference>\n{escape(reference, quote=False)}\n</reference>\n\n"
         f"<sources>\n{sources}\n</sources>\n\n<tool_results>\n{tools}\n</tool_results>\n\n"
-        f"<answer>\n{escape(rec.answer, quote=False)}\n</answer>"
+        f"<answer>\n{escape(citations.strip(rec.answer), quote=False)}\n</answer>"
     )
     return [SystemMessage(content=JUDGE_SYSTEM_PROMPT), HumanMessage(content=user)]
 
@@ -268,6 +287,17 @@ def _retrieval_averages(rows: list[dict]) -> dict:
     }
 
 
+def _citation_summary(rows: list[dict]) -> dict:
+    """Runs made before the model cited its sources have no citations: their summary says None, not 0."""
+    metrics = [r["citations"] for r in rows if r.get("citations") and not r["error"]]
+    return {
+        "answers_with_citation": sum(m["cited"] > 0 for m in metrics) if metrics else None,
+        "invalid": sum(m["invalid"] for m in metrics) if metrics else None,
+        "precision": _avg([m["precision"] for m in metrics if m["precision"] is not None]),
+        "sent_precision": _avg([m["sent_precision"] for m in metrics if m["sent_precision"] is not None]),
+    }
+
+
 # Implements: specs/20.md#AC-006
 def summarise(strategy: str, rows: list[dict], judge_cost_usd: float, judge_model: str) -> dict:
     flagged = [
@@ -288,6 +318,7 @@ def summarise(strategy: str, rows: list[dict], judge_cost_usd: float, judge_mode
         "rule_must_contain_rate": _avg([float(r["rules"]["must_contain_hit"]) for r in rows
                                         if r["rules"]["must_contain_hit"] is not None]),
         "expected_tool_used_rate": _avg([float(t) for t in tool_checks]),
+        "citations": _citation_summary(rows),
         "avg_latency_ms": round(mean(r["latency_ms"] for r in rows)) if rows else None,
         "avg_cost_usd": _avg([r["cost_usd"] for r in rows]),
         "errors": {r["id"]: r["error"] for r in rows if r["error"]},

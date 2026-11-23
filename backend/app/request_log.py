@@ -1,7 +1,7 @@
-"""Logging and monitoring (Phase 15): one JSON line per chat request, and a summary over the log.
+"""Logging and monitoring: one JSON line per chat request, and a summary over the log.
 
 JSON Lines (one JSON object per line) is easy to append to, easy to read back line by line, and every line can be
-parsed on its own, so a crash mid-write damages at most one line. The fields are the plan's:
+parsed on its own, so a crash mid-write damages at most one line. The fields:
 
     timestamp, conversation_id, query, translated_query, retrieved_chunks, tools, tokens, cost, latency_ms, status
 
@@ -59,16 +59,19 @@ def success_entry(conversation_id: str, query: str, result, latency_ms: int) -> 
         "translated_query": debug.translation.semantic_query if debug else None,
         "translation_origin": debug.translation.origin if debug else None,
         "retrieved_chunks": len(result.sources),
+        "cited_chunks": len(result.cited_ids),
+        "invalid_citations": len(debug.invalid_citations) if debug else 0,
         "tools": [c.tool for c in result.tool_calls],
         "tool_errors": [c.result["error"]["code"] for c in result.tool_calls if isinstance(c.result.get("error"), dict)],
         "tokens": sum(m.total_tokens for m in usage),
         "cost": round(sum(m.cost_usd or 0.0 for m in usage), 8),
         "models": {m.model: {"tokens": m.total_tokens, "cost": m.cost_usd} for m in usage},
         "latency_ms": latency_ms,
-        # Phase 25: how long the user waited for the first text of a streamed answer (absent for /api/chat)
+        # How long the user waited for the first text of a streamed answer (absent for /api/chat)
         "first_token_ms": debug.timings_ms.get("first_token") if debug else None,
-        "warnings": debug.warnings if debug else [],  # Phase 27: answered, but with a fallback
-        "per_film": debug.per_film if debug else [],  # Phase 29: films retrieved separately
+        "warnings": debug.warnings if debug else [],  # Answered, but with a fallback
+        "per_film": debug.per_film if debug else [],  # Films retrieved separately
+        "filters_applied": debug.filters_applied if debug else False,
         "status": "success" if result.sources else "no_results",
     }
 
@@ -84,7 +87,7 @@ def error_entry(conversation_id: str | None, query: str, code: str, latency_ms: 
 
 
 def disconnected_entry(conversation_id: str | None, query: str, latency_ms: int) -> dict:
-    """Phase 25: the user closed a streamed answer before it finished. Not an error of ours, so its own status."""
+    """The user closed a streamed answer before it finished. Not an error of ours, so its own status."""
     return {"conversation_id": conversation_id, "query": query, "latency_ms": latency_ms, "status": "disconnected"}
 
 

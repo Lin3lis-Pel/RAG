@@ -1,4 +1,4 @@
-"""Monitoring (Phase 15): summarise logs/requests.jsonl.
+"""Monitoring: summarise logs/requests.jsonl.
 
 Prints requests by status, error codes, latency (median / p95 / max), cost and tokens per answer, tool use,
 tool errors, translation fallbacks and usage per model.

@@ -1,4 +1,4 @@
-"""RAG documents and chunking (Phase 4.5–4.6).
+"""RAG documents and chunking.
 
 Two kinds of document:
 - review:  one per critic review. Answers "what do critics say about X?" and cites a single review.

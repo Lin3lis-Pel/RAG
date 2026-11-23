@@ -1,4 +1,4 @@
-"""Phase 28: record what the paid steps produce for the RAG test questions, so the tests can replay it for free.
+"""Record what the paid steps produce for the RAG test questions, so the tests can replay it for free.
 
 For each question in QUESTIONS this runs the real query translation (one Gemini call) and embeds its semantic query
 (one embedding call), and saves both in backend/tests/fixtures/rag_questions.json. backend/tests/test_rag_questions.py

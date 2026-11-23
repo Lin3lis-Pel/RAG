@@ -1,9 +1,9 @@
-"""Phase 18.3: vector-only vs hybrid retrieval on the same questions (retrieval only, no answers generated).
+"""Vector-only vs hybrid retrieval on the same questions (retrieval only, no answers generated).
 
 Questions:
-- 30 known-answer questions from the Phase 5 embedding experiment (22 plot, 8 critic opinion),
-- 16 casual questions from the Phase 7 translation experiment,
-- 8 two-film comparison questions (the case Phase 11 found one-sided).
+- 30 known-answer questions from the embedding experiment (22 plot, 8 critic opinion),
+- 16 casual questions from the translation experiment,
+- 8 two-film comparison questions (which a single search tends to answer one-sidedly).
 
 Each question is translated once and both searches run once (vector top 10, keyword top 10). The two strategies
 are then scored on the same results, so they differ only in how the 8 chunks for the model are chosen:

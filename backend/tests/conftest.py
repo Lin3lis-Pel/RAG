@@ -15,12 +15,12 @@ GROUPS = ("backend", "rag", "tools", "security", "mcp")
 # Every test file and its group. A file listed as None marks each test itself (test_live.py mixes rag and security).
 TEST_GROUPS = {
     "test_chat": "backend", "test_health": "backend", "test_history": "backend", "test_streaming": "backend",
-    "test_errors": "backend", "test_routes": "backend", "test_groups": "backend", "test_request_log": "backend",
+    "test_errors": "backend", "test_api_schema": "backend", "test_routes": "backend", "test_groups": "backend", "test_request_log": "backend",
     "test_usage": "backend", "test_evaluation": "backend",
     "test_database": "backend", "test_embedding_db": "backend", "test_embeddings": "backend",
     "test_retrieval_db": "backend", "test_fusion": "backend", "test_documents": "backend",
-    "test_query_translation": "backend",
-    "test_rag": "rag", "test_rag_debug": "rag", "test_rag_questions": "rag", "test_per_film": "rag",
+    "test_query_translation": "backend", "test_filters": "backend",
+    "test_rag": "rag", "test_citations": "rag", "test_rag_debug": "rag", "test_rag_questions": "rag", "test_per_film": "rag",
     "test_tools": "tools", "test_tools_db": "tools", "test_tool_calling": "tools", "test_tool_cases": "tools",
     "test_security": "security", "test_malicious_arguments": "security", "test_rate_limit": "security",
     "test_mcp": "mcp",
@@ -30,7 +30,7 @@ TEST_GROUPS = {
 
 def pytest_configure(config):
     for group in GROUPS:
-        config.addinivalue_line("markers", f"{group}: the plan's {group} tests (Phase 28)")
+        config.addinivalue_line("markers", f"{group}: the {group} tests")
     config.addinivalue_line("markers", "live: calls real models and costs money; run with `pytest -m live`")
     config.addinivalue_line("markers", "real_data: needs the ingested and embedded movie data; skipped on an empty "
                                        "database (GitHub Actions)")
@@ -57,7 +57,7 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture(autouse=True)
 def no_paid_api_calls(request, monkeypatch):
     """Tests must never reach OpenRouter. Any LLM or embedding call a test did not replace with a fake fails loudly.
-    Live tests (Phase 28, `pytest -m live`) are the one exception: calling the real models is their point."""
+    Live tests (`pytest -m live`) are the one exception: calling the real models is their point."""
     if request.node.get_closest_marker("live"):
         return
 

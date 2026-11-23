@@ -53,7 +53,7 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
         sa.Column("movie_id", sa.Text(), sa.ForeignKey("movies.id", ondelete="CASCADE"), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        # No dimension yet: fixed to vector(N) with an HNSW index once the embedding model is chosen (Phase 5).
+        # No dimension yet: fixed to vector(N) with an HNSW index once the embedding model is chosen.
         sa.Column("embedding", Vector()),
         sa.Column("metadata", postgresql.JSONB(), nullable=False, server_default=EMPTY_JSONB),
     )

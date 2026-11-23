@@ -1,14 +1,14 @@
-"""Phase 20: run the evaluation dataset through the real system and save the results for one strategy.
+"""Run the evaluation dataset through the real system and save the results for one strategy.
 
-Costs money: about $0.04 for the system's answers and about $0.25 for the judge per full run of 49 questions
+Costs money: about $0.04 for the system's answers and about $0.25 for the judge per full run of 50 questions
 (estimates), and 15-25 minutes, because each answer takes 15-30 s. Try a few first:
 
     python evaluation/run_evaluation.py --limit 3            # trial
-    python evaluation/run_evaluation.py                      # all 49, default strategy (hybrid)
-    python evaluation/run_evaluation.py --strategy vector    # Phase 21 comparison
+    python evaluation/run_evaluation.py                      # all 50, default strategy (hybrid)
+    python evaluation/run_evaluation.py --strategy vector    # strategy comparison
     python evaluation/run_evaluation.py --only F1,M3         # selected questions
     python evaluation/run_evaluation.py --only M6 --tag r2   # a repeat run, saved as <strategy>-r2.json
-    python evaluation/run_evaluation.py --tag r1 --out evaluation/results/final   # Phase 29 final runs
+    python evaluation/run_evaluation.py --tag r1 --out evaluation/results/final3   # the final runs
 
 Experiments (analytics; each run records the settings it used in summary.settings):
 
@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="only the first N questions (trial)")
     parser.add_argument("--only", help="comma-separated question ids")
     parser.add_argument("--tag", help="save as <strategy>-<tag>.json (e.g. repeat runs) instead of <strategy>.json")
-    parser.add_argument("--out", help="folder for the results (default evaluation/results; Phase 29: results/final)")
+    parser.add_argument("--out", help="folder for the results (default evaluation/results)")
     parser.add_argument("--top-k", type=int, choices=range(5, 11), metavar="5-10",
                         help="chunks sent to the model (default RETRIEVAL_TOP_K, 8; the plan allows 5-10)")
     parser.add_argument("--no-translation", action="store_true", help="search with the raw question")
@@ -115,6 +115,8 @@ def main() -> None:
             "warnings": rec.warnings, "translation_origin": rec.translation_origin,
             "retrieval": evaluation.retrieval_metrics(item, rec.chunks),
             "rules": evaluation.rule_checks(item, rec),
+            "citations": evaluation.citation_metrics(item, rec),
+            "cited": [c.id for c in rec.chunks if c.id in set(rec.cited_ids)],
             "judged": judgement is not None,
             "judgement": judgement.model_dump() if judgement else None,
             "scores": evaluation.scores(judgement) if judgement else None,
@@ -137,6 +139,7 @@ def main() -> None:
             "hallucination_rate", "relevance", "rule_must_contain_rate", "expected_tool_used_rate", "avg_latency_ms",
             "avg_cost_usd"]
     print("\n" + "\n".join(f"{k:26} {summary[k]}" for k in keys))
+    print(f"{'citations':26} {summary['citations']}")
     print(f"{'judge cost':26} ${summary['judge']['cost_usd']}")
     print(f"{'errors':26} {summary['errors'] or 'none'}")
     print(f"{'not judged':26} {summary['not_judged'] or 'none'}")

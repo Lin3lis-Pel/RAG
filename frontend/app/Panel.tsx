@@ -1,4 +1,4 @@
-// Phase 26: one look for every collapsible debug panel under an answer (RAG process, tool calls, token usage).
+// One look for every collapsible debug panel under an answer (RAG process, tool calls, token usage).
 // A closed panel shows its title and a one-line summary, so the essentials are readable without opening it.
 
 import type { ReactNode } from "react";

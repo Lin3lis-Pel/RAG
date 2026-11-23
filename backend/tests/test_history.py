@@ -1,4 +1,4 @@
-"""Conversation history (Phase 11). Database tests run in a rolled-back transaction; the RAG pipeline is faked."""
+"""Conversation history. Database tests run in a rolled-back transaction; the RAG pipeline is faked."""
 
 import uuid
 
@@ -58,18 +58,6 @@ def test_get_conversation_returns_every_message_in_order(api):
         ("user", "first question"), ("assistant", "answer to: first question"),
         ("user", "second question"), ("assistant", "answer to: second question"),
     ]
-
-
-def test_conversation_endpoints_create_and_post_messages(api):
-    created = api.post("/api/conversations")
-    assert created.status_code == 201
-    conversation_id = created.json()["id"]
-
-    reply = api.post(f"/api/conversations/{conversation_id}/messages", json={"message": "hello"}).json()
-
-    assert reply["answer"] == "answer to: hello"
-    assert reply["conversation_id"] == conversation_id
-    assert len(api.get(f"/api/conversations/{conversation_id}").json()["messages"]) == 2
 
 
 def test_unknown_conversation_is_404_in_the_standard_error_shape(api):

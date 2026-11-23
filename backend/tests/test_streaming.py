@@ -1,4 +1,4 @@
-"""Phase 25: streaming over SSE. Fake models and a fake pipeline: no API calls, no database."""
+"""Streaming over SSE. Fake models and a fake pipeline: no API calls, no database."""
 
 import json
 import threading
@@ -12,6 +12,7 @@ from langchain_core.outputs import ChatGeneration, LLMResult
 from app import llm, rag, request_log, streaming
 from app.errors import AppError, ClientDisconnected
 from app.retrieval import RetrievedChunk
+from app.schemas import StreamEvent
 from app.tool_calling import ToolCallRecord, run_with_tools
 from app.usage import track_usage
 
@@ -164,6 +165,8 @@ def test_stream_sends_progress_tokens_then_the_plans_sources_and_done(monkeypatc
     events = parse(response.text)
     assert [e["type"] for e in events] == ["status", "tool_call", "token", "token", "sources", "metadata", "done"]
     assert "".join(e["content"] for e in events if e["type"] == "token") == "Critics like it."
+    for event in events:
+        StreamEvent.model_validate(event)  # the schema the page's types are generated from
     assert events[4]["data"][0]["chunk_id"] == "2281"
     meta = events[5]["data"]
     assert meta["answer"] == "Critics like it." and meta["conversation_id"] == CONVERSATION_ID
@@ -177,6 +180,7 @@ def test_failure_after_the_stream_started_is_an_error_event_and_nothing_is_store
 
     events = parse(api_without_database.post("/api/chat/stream", json={"message": "Why?"}).text)
 
+    StreamEvent.model_validate(events[-1])
     assert events[-1] == {"type": "error", "error": {"code": "LLM_UNAVAILABLE", "message": "The language model is unavailable."}}
     assert "done" not in [e["type"] for e in events]
     assert api_without_database.saved == []

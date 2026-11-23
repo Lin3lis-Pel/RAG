@@ -1,7 +1,7 @@
-"""The MCP client (Phase 24): connects the chat pipeline to the MCP server and turns its tools into LangChain tools.
+"""The MCP client: connects the chat pipeline to the MCP server and turns its tools into LangChain tools.
 
-Before Phase 24:  LangChain -> local Python tool -> PostgreSQL
-Now:              LangChain -> MCP client (this file) -> MCP server (app/mcp_server.py, a child process) -> PostgreSQL
+TOOL_BACKEND=local:  LangChain -> local Python tool -> PostgreSQL
+TOOL_BACKEND=mcp:    LangChain -> MCP client (this file) -> MCP server (app/mcp_server.py, a child process) -> PostgreSQL
 
 The tool loop in app/tool_calling.py does not change. It still gets LangChain tools; only what happens inside them
 differs: instead of calling a Python function, each tool sends a `tools/call` message to the server and waits.
@@ -144,7 +144,7 @@ class McpToolClient:
         """One LangChain tool per tool the server lists. The JSON schema is passed as is: the model sees the server's
         schema, and the server (not LangChain) validates the arguments and returns INVALID_ARGUMENTS when they are wrong.
 
-        fallback (Phase 27): called with (name, arguments) when the server cannot be reached for a call, so the same
+        fallback: called with (name, arguments) when the server cannot be reached for a call, so the same
         tool can run another way (in-process) instead of the model getting MCP_UNAVAILABLE."""
         self.connect()
 

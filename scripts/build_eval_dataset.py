@@ -1,14 +1,14 @@
-"""Phase 19: build evaluation/evaluation_dataset.jsonl from questions whose expected answers come from the database.
+"""Build evaluation/evaluation_dataset.jsonl from questions whose expected answers come from the database.
 
 Expected answers are never typed from memory: directors, years, IMDb ratings, "which is higher", critic averages
 and acceptable films for recommendations are read from PostgreSQL here, and the build stops if a film is missing or
 a checked word does not appear in that film's reviews. So the dataset matches what the system can actually know.
 
-The questions are new: none of the 54 questions used to tune retrieval (Phases 5, 7, 18) are reused, so the
+The questions are new: none of the 54 questions used to tune retrieval are reused, so the
 evaluation does not reward settings that were picked on its own questions.
 
 Each line:
-  id, type, question, expected_answer, expected_movie (the plan's three fields), plus
+  id, type, question, expected_answer, expected_movie, plus
   expected_movies   films that should be retrieved (Recall@K); [] for no-answer questions
   must_contain_any  an answer counts as correct if it contains at least one of these (case-insensitive)
   expected_tool     tools a correct answer should use (any of them), or null when none is needed
@@ -87,15 +87,17 @@ PLOT = [  # (id, question, title, year)
     ("P8", "Which movie is about a young woman and her son held captive in a small shed for years?", "Room", 2015),
 ]
 
-RECOMMENDATION = [  # (id, question, genres (all required), year_min, rating_min)
-    ("C1", "Recommend some animated family films rated 8 or higher.", ["Animation", "Family"], None, 8.0),
-    ("C2", "Suggest war movies released since 2010.", ["War"], 2010, None),
-    ("C3", "Any good horror films from 2015 onwards rated at least 7?", ["Horror"], 2015, 7.0),
-    ("C4", "I want a music-themed movie with an IMDb rating of 8 or higher.", ["Music"], None, 8.0),
-    ("C5", "Recommend crime thrillers from 2010 or later rated 8 or higher.", ["Crime", "Thriller"], 2010, 8.0),
+RECOMMENDATION = [  # (id, question, genres (all required), year_min, year_max, rating_min)
+    ("C1", "Recommend some animated family films rated 8 or higher.", ["Animation", "Family"], None, None, 8.0),
+    ("C2", "Suggest war movies released since 2010.", ["War"], 2010, None, None),
+    ("C3", "Any good horror films from 2015 onwards rated at least 7?", ["Horror"], 2015, None, 7.0),
+    ("C4", "I want a music-themed movie with an IMDb rating of 8 or higher.", ["Music"], None, None, 8.0),
+    ("C5", "Recommend crime thrillers from 2010 or later rated 8 or higher.", ["Crime", "Thriller"], 2010, None, 8.0),
+    # A decade has two ends: Dune (2021) and Spider-Man: No Way Home (2021) also match everything but the year.
+    ("C6", "Which science fiction films from the 2010s are rated 8 or higher on IMDb?", ["Science Fiction"], 2010, 2019, 8.0),
 ]
 
-COMPARISON = [  # (id, question, films) — no pair from the 8 two-film tuning questions of Phase 18
+COMPARISON = [  # (id, question, films) — no pair from the 8 two-film tuning questions
     ("M1", "Compare Arrival and Interstellar as science-fiction films.", [("Arrival", 2016), ("Interstellar", 2014)]),
     ("M2", "How do critics compare Get Out and Us, both directed by Jordan Peele?", [("Get Out", 2017), ("Us", 2019)]),
     ("M3", "Compare Whiplash and La La Land, both by Damien Chazelle.", [("Whiplash", 2014), ("La La Land", 2016)]),
@@ -151,7 +153,7 @@ def build(session: Session) -> list[dict]:
         ms = [movie(session, t, y) for t, y in films]
         if kind == "imdb":
             r = f"{float(ms[0].rating):.1f}"
-            # No tool returns one film's IMDb rating (get_movie_metadata comes in Phase 24): it is in the profile chunk.
+            # Both get_movie_metadata and the profile chunk have it, so no single tool is expected.
             rows.append(base(id_, "rating", q, f"{label(ms[0])} has an IMDb rating of {r}.", ms, [r]))
         elif kind == "critics":
             avg = critic_average(session, ms[0])
@@ -181,10 +183,12 @@ def build(session: Session) -> list[dict]:
         m = movie(session, title, year)
         rows.append(base(id_, "plot", q, f"{label(m)}.", [m], [m.title]))
 
-    for id_, q, genres, year_min, rating_min in RECOMMENDATION:
+    for id_, q, genres, year_min, year_max, rating_min in RECOMMENDATION:
         stmt = select(Movie).where(*[literal(g) == any_(Movie.genres) for g in genres])
         if year_min:
             stmt = stmt.where(Movie.year >= year_min)
+        if year_max:
+            stmt = stmt.where(Movie.year <= year_max)
         if rating_min is not None:
             stmt = stmt.where(Movie.rating >= rating_min)
         matches = session.scalars(stmt.order_by(Movie.rating.desc(), Movie.title)).all()
@@ -194,7 +198,7 @@ def build(session: Session) -> list[dict]:
                          f"Any of the {len(matches)} films that satisfy the request, e.g. {', '.join(label(m) for m in matches[:3])}.",
                          [], [m.title for m in matches], ["filter_movies"],
                          acceptable_movies=[label(m) for m in matches],
-                         criteria={"genres": genres, "year_min": year_min, "rating_min": rating_min}))
+                         criteria={"genres": genres, "year_min": year_min, "year_max": year_max, "rating_min": rating_min}))
 
     for id_, q, films in COMPARISON:
         ms = [movie(session, t, y) for t, y in films]

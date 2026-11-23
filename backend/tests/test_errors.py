@@ -1,4 +1,4 @@
-"""Phase 27: every failure the plan lists, through both chat endpoints, plus the two fallbacks and the time limit.
+"""Every failure the plan lists, through both chat endpoints, plus the two fallbacks and the time limit.
 
 The plan's list: OpenRouter failure, database failure, embedding failure, no search results, tool error, MCP error,
 invalid JSON, invalid user input, timeout. Each gives the standard {"error": {"code", "message"}} (or, for the stream,

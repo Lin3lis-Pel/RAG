@@ -1,4 +1,4 @@
-"""Phase 4: load the selected subset into PostgreSQL and build RAG chunks.
+"""Load the selected subset into PostgreSQL and build RAG chunks.
 
 Steps (EXECUTION_PLAN.md 4.1–4.6):
 1. Load data/subset/*.jsonl (produced from the Hugging Face files by select_subset.py).
@@ -7,8 +7,8 @@ Steps (EXECUTION_PLAN.md 4.1–4.6):
 4. Build one review document per review and one profile document per movie, chunk them, upsert rag_chunks.
 
 Safe to re-run: rows are upserted by their IDs, chunks by metadata->>'chunk_key'. A chunk whose text is
-unchanged keeps its embedding; a changed chunk has its embedding cleared so Phase 5 re-embeds only that one.
-Embedding is not done here (Phase 5). No API calls.
+unchanged keeps its embedding; a changed chunk has its embedding cleared so the embedding job re-embeds only that one.
+Embedding is not done here (scripts/embed_chunks.py). No API calls.
 
 Run from the repo root with the backend venv active: python scripts/ingest.py [--movies N]
 """

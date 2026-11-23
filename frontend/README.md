@@ -1,36 +1,26 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend
 
-## Getting Started
-
-First, run the development server:
+The chat page of the Movie Research Copilot: Next.js with TypeScript and Tailwind, exported as static files
+(`output: "export"`). It has no server of its own; the browser calls the FastAPI backend and reads the answer as a
+stream. Setup and the whole system are described in the [main README](../README.md).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000, expects the backend on http://localhost:8000
+npm run build   # type check and static export into out/
+npm run lint
+npm run types   # regenerate app/api-types.ts from openapi.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`NEXT_PUBLIC_API_BASE_URL` sets another backend address; it is built into the files (see `.env.example`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| File | What it does |
+|---|---|
+| `app/page.tsx` | The chat: sends a question, reads the Server-Sent Events, keeps the conversation |
+| `app/SourceList.tsx`, `app/citations.ts` | Cited sources first, numbered as in the answer; the rest collapsed |
+| `app/RagPanel.tsx`, `app/ToolCallList.tsx`, `app/UsagePanel.tsx` | The collapsible panels under each answer |
+| `app/api.ts`, `app/api-types.ts` | The API's types, generated from the backend's schemas |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**API types.** `openapi.json` is written by `python scripts/export_openapi.py` (repo root) and `api-types.ts` is
+generated from it. After changing a backend schema, run that script and `npm run types`, and commit both files; the
+tests and CI fail when either is out of date.

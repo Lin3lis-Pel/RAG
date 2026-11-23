@@ -1,4 +1,4 @@
-"""Phase 24.2: test the MCP server on its own, without the chatbot. No LLM, no API calls, no cost.
+"""Test the MCP server on its own, without the chatbot. No LLM, no API calls, no cost.
 
 Starts the server as a child process over stdio (exactly as the backend does), lists its tools (discovery), then
 calls each one with real arguments plus three bad calls, and prints what came back.

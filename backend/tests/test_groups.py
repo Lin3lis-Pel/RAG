@@ -30,7 +30,7 @@ def test_a_normal_run_leaves_out_live_tests(request):
     assert "not live" in " ".join(request.config.getini("addopts"))
 
 
-# Implements: specs/28.md#AC-001, #AC-007 (found in this phase: `-m rag` replaced the default and ran the live tests)
+# Implements: specs/28.md#AC-001, #AC-007 (`-m rag` replaced the default and ran the live tests)
 def test_running_one_group_never_includes_live_tests():
     import subprocess
     import sys

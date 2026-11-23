@@ -1,4 +1,4 @@
-"""Query translation (Phase 7): rewrite the user's message into a search request before retrieval.
+"""Query translation: rewrite the user's message into a search request before retrieval.
 
 People ask casually ("that one where hugh jackman's kid gets kidnapped, any good?"). Embedding that text
 as-is mixes the part that identifies the film with chatter ("any good?") that matches nothing useful.
@@ -7,8 +7,9 @@ An LLM call first turns it into:
     {"semantic_query": "...", "keywords": [...], "filters": {...}}
 
 - semantic_query: a clean, descriptive sentence. This is what gets embedded for vector search.
-- keywords: exact terms (titles, names, themes) for keyword search in Phase 17.
-- filters: genre, year range, minimum rating, only when the user asks for them; applied in a later phase.
+- keywords: exact terms (titles, names, themes) for keyword search.
+- filters: genres, year range, minimum rating, only when the user states them. Retrieval applies them when the
+  question names no film (app/rag.py).
 
 Only retrieval uses the translation. The final answer is still generated for the user's original question,
 so the user's intent is never replaced by the rewrite.
@@ -20,7 +21,7 @@ dropped, numbers are range-checked, and any failure falls back to searching with
 from html import escape
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from pydantic import BaseModel, Field, PrivateAttr, field_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 from app import llm
 from app.config import get_settings
@@ -29,7 +30,7 @@ from app.genres import KNOWN_GENRES, normalise_genre
 from app.history import Turn
 
 MAX_KEYWORDS = 8
-MAX_MOVIES = 4  # Phase 29: films named in the question, for per-film retrieval
+MAX_MOVIES = 4  # Films named in the question, for per-film retrieval
 
 
 class QueryFilters(BaseModel):
@@ -44,15 +45,38 @@ class QueryFilters(BaseModel):
         mapped = [normalise_genre(g) for g in genres]
         return list(dict.fromkeys(g for g in mapped if g))  # drop unknown, keep order, no duplicates
 
+    @model_validator(mode="after")
+    def _drop_impossible_years(self) -> "QueryFilters":
+        """2019 to 2010 matches nothing and was not what the user said: ignore the years, keep the rest."""
+        if self.year_min is not None and self.year_max is not None and self.year_min > self.year_max:
+            self.year_min = self.year_max = None
+        return self
+
+    def is_empty(self) -> bool:
+        return not self.genres and self.year_min is None and self.year_max is None and self.rating_min is None
+
+    def describe(self) -> str:
+        """For the user: "Thriller, 2010-2019, rated 8 or higher"."""
+        parts = list(self.genres)
+        if self.year_min is not None and self.year_max is not None:
+            parts.append(f"{self.year_min}-{self.year_max}")
+        elif self.year_min is not None:
+            parts.append(f"{self.year_min} or later")
+        elif self.year_max is not None:
+            parts.append(f"{self.year_max} or earlier")
+        if self.rating_min is not None:
+            parts.append(f"rated {self.rating_min:g} or higher")
+        return ", ".join(parts)
+
 
 class TranslatedQuery(BaseModel):
     semantic_query: str = Field(min_length=1, max_length=500)
     keywords: list[str] = Field(default_factory=list)
     filters: QueryFilters = Field(default_factory=QueryFilters)
-    # Phase 29: the titles of the films the message names. Untrusted like the rest: rag.py only uses titles that
+    # The titles of the films the message names. Untrusted like the rest: rag.py only uses titles that
     # exist in the database, so an invented title cannot steer retrieval.
     movies: list[str] = Field(default_factory=list)
-    # Where this came from, for the debug panel (Phase 12): "model", "fallback" (translation failed) or
+    # Where this came from, for the debug panel: "model", "fallback" (translation failed) or
     # "disabled". A private attribute, so it is not part of the JSON schema the model is asked to fill.
     _origin: str = PrivateAttr(default="model")
 
@@ -90,7 +114,8 @@ Return:
 - keywords: up to {MAX_KEYWORDS} short exact terms worth matching literally: titles, people, genres, themes.
 - movies: the exact titles of the films the message names (or refers to as "it" / "that one", resolved from
   the history), at most {MAX_MOVIES}; empty if it names none. Do not add films the user did not mean.
-- filters: only constraints the user explicitly states ("from the 90s", "rated above 8", "a comedy"),
+- filters: only constraints the user explicitly states ("rated above 8", "a comedy"; "from the 2010s" is
+  year_min 2010, year_max 2019),
   otherwise leave empty or null. Never derive filters from the movies the user names: "Zodiac or Prisoners?"
   has no filters. genres only from: {", ".join(KNOWN_GENRES)}. year_min / year_max as years.
   rating_min on a 0-10 scale.

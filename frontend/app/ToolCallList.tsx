@@ -1,12 +1,7 @@
+import type { ToolCall } from "./api";
 import Panel from "./Panel";
 
-// Phase 13: shows each tool call the model made (tool, arguments, result), from `tool_calls` in /api/chat.
-
-export type ToolCall = {
-  tool: string;
-  arguments: Record<string, unknown>;
-  result: Record<string, unknown>;
-};
+// Shows each tool call the model made (tool, arguments, result), from `tool_calls` in /api/chat.
 
 type Movie = { title: string; year: number | null; imdb_rating: number | null; genres: string[]; review_count?: number };
 type ToolError = {
@@ -134,7 +129,7 @@ type Metadata = {
   imdb_votes: number | null;
 };
 
-// Phase 24: get_movie_metadata
+// get_movie_metadata
 function MetadataResult({ result }: { result: Metadata }) {
   const rows: [string, string][] = [
     ["Director", result.director ?? "–"],
@@ -181,7 +176,7 @@ function formatArguments(args: Record<string, unknown>): string {
   return entries.length ? entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ") : "(none)";
 }
 
-// `via` is debug.tool_backend: "mcp" when the tools ran on the MCP server (Phase 24), "local" when in-process.
+// `via` is debug.tool_backend: "mcp" when the tools ran on the MCP server, "local" when in-process.
 export default function ToolCallList({ calls, via }: { calls: ToolCall[]; via?: string }) {
   const seen = new Set<string>();
   const path =

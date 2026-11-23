@@ -1,4 +1,4 @@
-"""Hybrid search (Phase 18): merge vector and keyword results with Reciprocal Rank Fusion.
+"""Hybrid search: merge vector and keyword results with Reciprocal Rank Fusion.
 
 The two searches score chunks on unrelated scales (cosine distance vs full-text rank), so their scores cannot be
 added. Reciprocal Rank Fusion (RRF) uses only each chunk's *position* in each list:
@@ -10,7 +10,7 @@ of a single list, so evidence that both meaning and exact words agree on rises t
 that vector search ignores has to compete on one list only. The larger k is, the less rank 1 counts over rank 10.
 
 The top RETRIEVAL_TOP_K chunks of the fused list are what the model receives. With strategy "vector" the fusion is
-skipped and the model gets the vector top K, which is how the two strategies are compared (Phase 18.3, 21).
+skipped and the model gets the vector top K, which is how the two strategies are compared.
 """
 
 from dataclasses import dataclass, field, replace
@@ -55,7 +55,7 @@ def reciprocal_rank_fusion(lists: dict[str, list[RetrievedChunk]], k: int = 60) 
             entry.ranks[name] = rank
     # Highest score first. Ties (e.g. rank 1 in one list each) go to the chunk vector search ranked higher, then the
     # better keyword rank, then the lower id, so the order is reproducible. Measured on 54 questions, preferring the
-    # vector rank was better than or equal to an arbitrary tie-break on every metric (README, Phase 18).
+    # vector rank was better than or equal to an arbitrary tie-break on every metric (docs/project_log.md).
     missing = float("inf")
     return sorted(
         fused.values(),

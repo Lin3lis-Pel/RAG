@@ -1,4 +1,4 @@
-"""Phase 2: inspect the raw review and movie files before building anything on them.
+"""Inspect the raw review and movie files before building anything on them.
 
 Checks from EXECUTION_PLAN.md 2.2: number of records, fields, missing values, review lengths,
 duplicate movies, languages, rating formats. Plus how well the two sources join.

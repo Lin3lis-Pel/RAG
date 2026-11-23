@@ -1,4 +1,4 @@
-"""Streaming over Server-Sent Events (Phase 25): the answer appears on the page while it is being written.
+"""Streaming over Server-Sent Events: the answer appears on the page while it is being written.
 
 SSE is a plain HTTP response that stays open; the server writes one event at a time, each as a `data: <json>` line
 followed by a blank line, and the browser reads them as they arrive. Events, in order:

@@ -1,20 +1,7 @@
-"use client";
+// The chunks the model was given: first the ones the answer cites, numbered as in the text, then, collapsed, the rest.
+// The rest is kept because it is an honest record of what retrieval found, including what the model did not use.
 
-// Phase 8, redesigned in Phase 26: every chunk the model was given, shown under the answer (the first 3, then all).
-
-import { useState } from "react";
-
-export type Source = {
-  movie: string;
-  year: number | null;
-  review_id: string | null;
-  chunk_id: string;
-  source: string;
-  critic: string | null;
-  publication: string | null;
-  url: string | null;
-  excerpt: string;
-};
+import type { Source } from "./api";
 
 // Only http(s) links are rendered; anything else in the data is shown as plain text.
 function safeUrl(url: string | null): string | null {
@@ -26,54 +13,90 @@ function attribution(source: Source): string {
   return [source.critic ?? "Unknown critic", source.publication].filter(Boolean).join(", ");
 }
 
-const FIRST = 3;
+// "Prisoners (2013), A.O. Scott, New York Times": also the tooltip of a citation in the text.
+export function sourceLabel(source: Source): string {
+  return `${source.movie}${source.year ? ` (${source.year})` : ""}, ${attribution(source)}`;
+}
 
-export default function SourceList({ sources }: { sources: Source[] }) {
-  const [all, setAll] = useState(false);
+function SourceCard({ source, number, id }: { source: Source; number?: number; id?: string }) {
+  const url = safeUrl(source.url);
+  return (
+    <li
+      id={id}
+      tabIndex={id ? -1 : undefined}
+      className="flex min-w-0 flex-col rounded-lg border border-line p-2.5 text-xs focus:border-accent focus:outline-none"
+    >
+      <div className="flex items-baseline gap-1.5">
+        {number !== undefined && <span className="font-medium text-accent">{number}</span>}
+        <span className="truncate text-sm font-medium" title={source.movie}>
+          {source.movie}
+          {source.year ? ` (${source.year})` : ""}
+        </span>
+      </div>
+      <div className="truncate text-muted" title={attribution(source)}>
+        {attribution(source)}
+      </div>
+      <p className="mt-1 text-foreground/80">{source.excerpt}</p>
+      <div className="mt-auto flex gap-2 pt-1.5 text-muted">
+        {url && (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+            Original review
+          </a>
+        )}
+        <span className="ml-auto" title={source.review_id ? `review ${source.review_id}` : undefined}>
+          chunk {source.chunk_id}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+const GRID = "grid gap-2 sm:grid-cols-3";
+
+// citedOrder: the chunk ids the answer cites, in the order first cited. idPrefix makes a card's id unique per answer.
+export default function SourceList({
+  sources,
+  citedOrder,
+  idPrefix,
+}: {
+  sources: Source[];
+  citedOrder: string[];
+  idPrefix: string;
+}) {
   if (sources.length === 0) return null;
-  const shown = all ? sources : sources.slice(0, FIRST);
+  const cited = sources
+    .filter((s) => s.cited)
+    .sort((a, b) => citedOrder.indexOf(a.chunk_id) - citedOrder.indexOf(b.chunk_id));
+  const rest = sources.filter((s) => !s.cited);
 
   return (
     <section className="mt-3" aria-label="Sources">
       <h3 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">Sources</h3>
-      <ol className="grid gap-2 sm:grid-cols-3">
-        {shown.map((source, i) => {
-          const url = safeUrl(source.url);
-          return (
-            <li key={source.chunk_id} className="flex min-w-0 flex-col rounded-lg border border-line p-2.5 text-xs">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-muted">{i + 1}</span>
-                <span className="truncate text-sm font-medium" title={source.movie}>
-                  {source.movie}
-                  {source.year ? ` (${source.year})` : ""}
-                </span>
-              </div>
-              <div className="truncate text-muted" title={attribution(source)}>
-                {attribution(source)}
-              </div>
-              <p className={`mt-1 text-foreground/80 ${all ? "" : "line-clamp-3"}`}>{source.excerpt}</p>
-              <div className="mt-auto flex gap-2 pt-1.5 text-muted">
-                {url && (
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                    Original review
-                  </a>
-                )}
-                <span className="ml-auto" title={source.review_id ? `review ${source.review_id}` : undefined}>
-                  chunk {source.chunk_id}
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-      {sources.length > FIRST && (
-        <button
-          type="button"
-          onClick={() => setAll(!all)}
-          className="mt-1.5 text-xs text-muted underline hover:text-foreground"
-        >
-          {all ? "Show fewer" : `Show all ${sources.length} sources`}
-        </button>
+      {cited.length > 0 ? (
+        <ol className={GRID}>
+          {cited.map((source) => (
+            <SourceCard
+              key={source.chunk_id}
+              source={source}
+              number={citedOrder.indexOf(source.chunk_id) + 1}
+              id={`${idPrefix}${source.chunk_id}`}
+            />
+          ))}
+        </ol>
+      ) : (
+        <p className="text-xs text-muted">This answer cites none of the retrieved reviews or profiles.</p>
+      )}
+      {rest.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs text-muted hover:text-foreground">
+            Also retrieved, not cited ({rest.length})
+          </summary>
+          <ul className={`mt-1.5 ${GRID}`}>
+            {rest.map((source) => (
+              <SourceCard key={source.chunk_id} source={source} />
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );

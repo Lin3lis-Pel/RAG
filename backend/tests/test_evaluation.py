@@ -41,7 +41,7 @@ def record(chunks, answer="Arrival is quieter; Interstellar is bigger.", tool_ca
 
 def test_ac001_the_real_dataset_loads():
     items = evaluation.load_dataset(DATASET)
-    assert len(items) == 49
+    assert len(items) == 50
     assert {i.type for i in items} == {"factual", "rating", "opinion", "plot", "recommendation", "comparison", "no_answer"}
 
 

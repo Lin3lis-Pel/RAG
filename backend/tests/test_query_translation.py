@@ -1,4 +1,4 @@
-"""Query translation (Phase 7). The LLM is faked: no API calls."""
+"""Query translation. The LLM is faked: no API calls."""
 
 import pytest
 from pydantic import ValidationError

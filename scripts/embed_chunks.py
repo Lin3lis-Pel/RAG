@@ -1,4 +1,4 @@
-"""Phase 5: embed every RAG chunk that has no embedding yet (openai/text-embedding-3-small via OpenRouter).
+"""Embed every RAG chunk that has no embedding yet (openai/text-embedding-3-small via OpenRouter).
 
 Costs money: always look at the plan line first. Try a handful before a full run:
     python scripts/embed_chunks.py --dry-run      # only print what would be sent

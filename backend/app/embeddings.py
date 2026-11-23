@@ -1,4 +1,4 @@
-"""The only place that calls the embedding API, for document chunks (Phase 5) and user queries (Phase 6).
+"""The only place that calls the embedding API, for document chunks and user queries.
 
 An embedding is a list of numbers (here 1,536) that places a text in a "meaning space": texts about
 similar things get vectors pointing in similar directions, so cosine distance between vectors works as
@@ -85,5 +85,5 @@ def embed_texts(
 def embed_query(text: str) -> list[float]:
     """Embed a user question with the same model as the documents."""
     vector = _check([_call(get_embedder().embed_query, text)], 1)[0]
-    usage.record_embedding(get_settings().embedding_model, text)  # Phase 14: counted as an estimate
+    usage.record_embedding(get_settings().embedding_model, text)  # Counted as an estimate
     return vector

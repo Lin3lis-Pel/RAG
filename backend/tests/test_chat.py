@@ -51,17 +51,17 @@ def test_chat_returns_answer_and_sources(client, fake_rag):
     assert body["answer"] == "Try Prisoners (2013)."
     assert body["conversation_id"] == CONVERSATION_ID
     assert fake_rag == [("Recommend me a thriller", client.fake_session)]
-    # Phase 8: the plan's citation fields, as strings, plus display fields
+    # The citation fields, as strings, plus display fields
     assert body["sources"] == [
         {
             "movie": "Prisoners", "year": 2013, "review_id": "1822", "chunk_id": "2281",
             "source": "rotten_tomatoes", "critic": "A.O. Scott", "publication": "New York Times",
-            "url": "https://example.com/review", "excerpt": "Gripping and grim.",
+            "url": "https://example.com/review", "excerpt": "Gripping and grim.", "cited": False,
         },
         {
             "movie": "Prisoners", "year": 2013, "review_id": None, "chunk_id": "7",
             "source": "tmdb_imdb", "critic": None, "publication": None,
-            "url": None, "excerpt": "Director: Denis Villeneuve",
+            "url": None, "excerpt": "Director: Denis Villeneuve", "cited": False,
         },
     ]
 

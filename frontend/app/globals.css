@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Phase 26: colour tokens, used as Tailwind utilities (bg-surface, border-line, text-muted, bg-accent ...). */
+/* Colour tokens, used as Tailwind utilities (bg-surface, border-line, text-muted, bg-accent ...). */
 :root {
   --background: #ffffff;
   --foreground: #18181b;

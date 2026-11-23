@@ -1,4 +1,4 @@
-"""Helpers shared by dataset inspection (Phase 2) and ingestion (Phase 4).
+"""Helpers shared by dataset inspection and ingestion.
 
 The two sources have no shared ID. Rotten Tomatoes identifies a movie by a URL slug
 ("prisoners_2013", "the-social-network", "1193230-state_of_play"); TMDB-IMDB has a title,

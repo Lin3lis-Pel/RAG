@@ -20,7 +20,7 @@ from app.errors import AppError
 
 
 class OpenRouterChat(ChatOpenAI):
-    """ChatOpenAI that keeps OpenRouter's usage block when streaming (Phase 25).
+    """ChatOpenAI that keeps OpenRouter's usage block when streaming.
 
     Without streaming, LangChain puts the provider's whole usage dict, including OpenRouter's `cost`, into
     response_metadata["token_usage"], which app/usage.py reads. When streaming, the usage arrives in the last chunk
@@ -78,13 +78,13 @@ def get_structured_model(reasoning: bool) -> ChatOpenAI:
 
 
 def provider_error(exc: openai.APIError) -> AppError:
-    """Phase 27: one place that turns an OpenRouter failure into our error. Messages stay generic for the user; the
+    """One place that turns an OpenRouter failure into our error. Messages stay generic for the user; the
     code says what happened, for the log. Order matters: the specific errors are subclasses of APIError."""
     if isinstance(exc, openai.APITimeoutError):
         return AppError("LLM_TIMEOUT", "The language model took too long to respond.", 504)
     if isinstance(exc, openai.RateLimitError):  # 429: too many requests, or the account is out of credit
         return AppError("LLM_RATE_LIMITED", "The language model is busy right now. Please try again in a moment.", 429)
-    if isinstance(exc, openai.APIStatusError) and exc.status_code == 402:  # found in Phase 29: the account ran dry
+    if isinstance(exc, openai.APIStatusError) and exc.status_code == 402:  # the account ran out of credit
         return AppError("LLM_OUT_OF_CREDIT", "The language model account has run out of credit.", 503)
     if isinstance(exc, (openai.AuthenticationError, openai.PermissionDeniedError)):  # 401/403: key wrong or revoked
         return AppError("LLM_AUTH_FAILED", "The language model is not configured correctly.", 502)
@@ -101,7 +101,7 @@ def invoke(runnable, messages):
 
 
 def stream(runnable, messages, on_text: Callable[[str], None]) -> AIMessageChunk:
-    """Phase 25: call a model with streaming. Each piece of text goes to on_text as it arrives; the return value is
+    """Call a model with streaming. Each piece of text goes to on_text as it arrives; the return value is
     the whole reply (text, tool calls, usage), the same thing invoke() would have returned."""
     deadline.check()
     reply: AIMessageChunk | None = None
@@ -117,14 +117,14 @@ def stream(runnable, messages, on_text: Callable[[str], None]) -> AIMessageChunk
 
 
 def tool_model(tools: list[BaseTool], tool_choice: str | None = None):
-    """The chat model with the tools' schemas attached (Phase 10). LangChain's bind_tools sends each tool's
+    """The chat model with the tools' schemas attached. LangChain's bind_tools sends each tool's
     name, description and JSON schema with every request; tool_choice="none" forbids calling them."""
     return get_chat_model().bind_tools(tools, tool_choice=tool_choice)
 
 
 @lru_cache
 def get_judge_model() -> ChatOpenAI:
-    """Evaluation judge (Phase 20): EVALUATION_JUDGE_MODEL, from a different vendor than the system's own models,
+    """Evaluation judge: EVALUATION_JUDGE_MODEL, from a different vendor than the system's own models,
     deterministic, with room for a list of claims."""
     settings = get_settings()
     if settings.openrouter_api_key is None:

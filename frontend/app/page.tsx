@@ -3,10 +3,12 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-import SourceList, { type Source } from "./SourceList";
-import RagPanel, { type RagDebug } from "./RagPanel";
-import ToolCallList, { type ToolCall } from "./ToolCallList";
-import UsagePanel, { type Usage } from "./UsagePanel";
+import type { ErrorResponse, RagDebug, Source, StoredConversation, StreamEvent, ToolCall, Usage } from "./api";
+import { CITE, citedIds, numberCitations } from "./citations";
+import RagPanel from "./RagPanel";
+import SourceList, { sourceLabel } from "./SourceList";
+import ToolCallList from "./ToolCallList";
+import UsagePanel from "./UsagePanel";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -19,13 +21,13 @@ type Message = {
   debug?: RagDebug | null;
   toolCalls?: ToolCall[];
   usage?: Usage | null;
-  // Phase 25: set while the answer is still streaming in
+  // Set while the answer is still streaming in
   streaming?: boolean;
   status?: string; // progress ("Searching reviews…") or a note under the answer ("Stopped")
-  restored?: boolean; // Phase 26: loaded from history after a reload (text only, no panels)
+  restored?: boolean; // Loaded from history after a reload (text only, no panels)
 };
 
-// Phase 26: shown on an empty chat; one click asks it. Each one exercises a different part of the system.
+// Shown on an empty chat; one click asks it. Each one exercises a different part of the system.
 const EXAMPLES = [
   { label: "Compare two films", text: "Which is rated higher, Zodiac or Prisoners?" },
   { label: "Recommend", text: "Recommend a slow-burning thriller and explain why critics liked it." },
@@ -33,9 +35,7 @@ const EXAMPLES = [
   { label: "Filter the database", text: "Which thrillers since 2010 are rated above 7.5 on IMDb?" },
 ];
 
-type ErrorResponse = { error: { code: string; message: string } };
-
-// Phase 27: an error with the backend's code (LLM_TIMEOUT, DATABASE_UNAVAILABLE, ...), shown small under the message.
+// An error with the backend's code (LLM_TIMEOUT, DATABASE_UNAVAILABLE, ...), shown small under the message.
 class ApiError extends Error {
   constructor(message: string, readonly code?: string) {
     super(message);
@@ -43,19 +43,6 @@ class ApiError extends Error {
 }
 
 type FailedQuestion = { question: string; message: string; code?: string };
-
-// Phase 25: the events of POST /api/chat/stream (backend/app/streaming.py).
-type StreamEvent =
-  | { type: "status"; stage: string; message: string }
-  | { type: "token"; content: string }
-  | { type: "tool_call"; data: ToolCall }
-  | { type: "sources"; data: Source[] }
-  | {
-      type: "metadata";
-      data: { answer: string; conversation_id: string; tool_calls: ToolCall[]; debug: RagDebug | null; usage: Usage | null };
-    }
-  | { type: "done" }
-  | { type: "error"; error: { code: string; message: string } };
 
 // Server-Sent Events over fetch: the browser's EventSource only does GET, and we POST a JSON body. The body is read
 // as it arrives; events are separated by a blank line, and each has one "data: <json>" line.
@@ -100,7 +87,7 @@ async function streamChat(
   }
 }
 
-// Phase 11: the conversation id is remembered in this browser, so a reload continues the same conversation.
+// The conversation id is remembered in this browser, so a reload continues the same conversation.
 // Storage can be unavailable (private windows, blocked site data): then each page load starts a new one.
 const CONVERSATION_KEY = "movie-copilot-conversation-id";
 
@@ -120,17 +107,50 @@ function storeId(id: string) {
   }
 }
 
-type StoredConversation = { messages: { role: Role; content: string }[] };
-
 async function loadConversation(id: string): Promise<Message[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/conversations/${id}`);
     if (!res.ok) return []; // 404: nothing saved yet for this id
     const body = (await res.json()) as StoredConversation;
-    return body.messages.map((m) => ({ role: m.role, content: m.content, restored: true }));
+    return body.messages.map((m) => ({ role: m.role as Role, content: m.content, restored: true }));
   } catch {
     return [];
   }
+}
+
+// The answer as Markdown, with its citations as superscript numbers that jump to their source card.
+function Answer({ message, idPrefix }: { message: Message; idPrefix: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        a: ({ href, children }) => {
+          if (!href?.startsWith(CITE)) return <a href={href}>{children}</a>;
+          const id = href.slice(CITE.length);
+          const source = message.sources?.find((s) => s.chunk_id === id);
+          const label = source ? sourceLabel(source) : `chunk ${id}`;
+          return (
+            <sup>
+              <button
+                type="button"
+                title={label}
+                aria-label={`Source: ${label}`}
+                onClick={() => {
+                  const card = document.getElementById(`${idPrefix}${id}`);
+                  card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                  card?.focus({ preventScroll: true });
+                }}
+                className="cursor-pointer px-0.5 font-medium text-accent hover:underline"
+              >
+                {children}
+              </button>
+            </sup>
+          );
+        },
+      }}
+    >
+      {numberCitations(message.content, message.streaming ?? false)}
+    </ReactMarkdown>
+  );
 }
 
 export default function Home() {
@@ -176,7 +196,7 @@ export default function Home() {
   async function send(text: string) {
     if (!text || loading || !conversationId) return;
 
-    // Phase 25: an empty assistant message that the stream fills in.
+    // An empty assistant message that the stream fills in.
     setMessages((prev) => [
       ...prev,
       { role: "user", content: text },
@@ -213,7 +233,7 @@ export default function Home() {
             case "metadata": {
               const d = event.data;
               updateAnswer((m) => ({ ...m, content: d.answer, toolCalls: d.tool_calls, debug: d.debug, usage: d.usage }));
-              // Phase 27: d.debug.warnings (a fallback was used) are shown under the answer from debug
+              // d.debug.warnings (a fallback was used) are shown under the answer from debug
               break;
             }
             case "done":
@@ -249,7 +269,7 @@ export default function Home() {
 
   const restoredCount = messages.filter((m) => m.restored).length;
 
-  // Phase 26 layout: a fixed header and composer, and only the conversation scrolls between them.
+  // Layout: a fixed header and composer, and only the conversation scrolls between them.
   return (
     <div className="flex h-dvh flex-col">
       <header className="border-b border-line">
@@ -307,7 +327,7 @@ export default function Home() {
                 <article className="flex flex-col">
                   {/* react-markdown builds React elements and does not render raw HTML, so model output cannot inject markup. */}
                   <div className="markdown rounded-2xl bg-surface px-4 py-3 leading-relaxed">
-                    {msg.content ? <ReactMarkdown>{msg.content}</ReactMarkdown> : null}
+                    {msg.content ? <Answer message={msg} idPrefix={`source-${i}-`} /> : null}
                     {msg.status && (
                       <p className={`flex items-center gap-2 text-sm text-muted ${msg.streaming ? "animate-pulse" : ""}`}>
                         {msg.streaming && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />}
@@ -315,7 +335,7 @@ export default function Home() {
                       </p>
                     )}
                   </div>
-                  {/* The plan's order: sources, then the collapsible RAG process, tool calls and token usage / cost. */}
+                  {/* In order: sources, then the collapsible RAG process, tool calls and token usage / cost. */}
                   {(msg.debug?.warnings ?? []).map((w) => (
                     <p
                       key={w}
@@ -324,7 +344,11 @@ export default function Home() {
                       {w}
                     </p>
                   ))}
-                  <SourceList sources={msg.sources ?? []} />
+                  <SourceList
+                    sources={msg.sources ?? []}
+                    citedOrder={citedIds(msg.content)}
+                    idPrefix={`source-${i}-`}
+                  />
                   {!msg.restored && (msg.debug || msg.usage) && (
                     <div className="mt-3 overflow-hidden rounded-lg border border-line">
                       <RagPanel debug={msg.debug} />

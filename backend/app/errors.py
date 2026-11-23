@@ -17,7 +17,7 @@ from app.schemas import ErrorDetail, ErrorResponse
 
 logger = logging.getLogger(__name__)
 
-HTTP_ERRORS = {  # Phase 27: FastAPI's own errors in our shape instead of {"detail": "..."}
+HTTP_ERRORS = {  # FastAPI's own errors in our shape instead of {"detail": "..."}
     404: ("NOT_FOUND", "There is no such endpoint."),
     405: ("METHOD_NOT_ALLOWED", "This endpoint does not accept that method."),
 }
@@ -32,7 +32,7 @@ class AppError(Exception):
 
 
 class ClientDisconnected(Exception):
-    """Phase 25: the browser closed a streamed answer. Raised inside the pipeline to stop it; never shown."""
+    """The browser closed a streamed answer. Raised inside the pipeline to stop it; never shown."""
 
 
 def error_response(code: str, message: str, status_code: int) -> JSONResponse:
@@ -46,7 +46,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def catch_unexpected_errors(request: Request, call_next):
-        # Phase 27: a bug anywhere would otherwise answer with Starlette's plain-text "Internal Server Error".
+        # A bug anywhere would otherwise answer with Starlette's plain-text "Internal Server Error".
         try:
             return await call_next(request)
         except Exception:

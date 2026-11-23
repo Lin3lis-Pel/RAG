@@ -158,7 +158,7 @@ def test_ac004_invalid_arguments_run_no_query(films):
     assert statements == []
 
 
-# --- Phase 24: get_movie_metadata ---------------------------------------------------------------------
+# --- get_movie_metadata ---------------------------------------------------------------------
 
 
 def test_metadata_returns_the_movie_row_and_its_extras(films):

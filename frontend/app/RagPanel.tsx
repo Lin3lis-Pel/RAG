@@ -1,60 +1,7 @@
+import type { RagDebug } from "./api";
 import Panel from "./Panel";
 
-// Phase 12: shows what retrieval did for one answer. Data comes from the `debug` object of /api/chat.
-
-export type VectorResult = {
-  rank: number;
-  chunk_id: string;
-  movie: string;
-  year: number | null;
-  doc_type: string | null;
-  critic: string | null;
-  distance: number;
-  similarity: number;
-  excerpt: string;
-};
-
-export type KeywordResult = {
-  rank: number;
-  chunk_id: string;
-  movie: string;
-  year: number | null;
-  doc_type: string | null;
-  critic: string | null;
-  score: number;
-  excerpt: string;
-};
-
-export type FusedResult = {
-  rank: number;
-  chunk_id: string;
-  movie: string;
-  year: number | null;
-  doc_type: string | null;
-  found_by: string[];
-  vector_rank: number | null;
-  keyword_rank: number | null;
-  fused_score: number;
-  selected: boolean;
-};
-
-export type RagDebug = {
-  original_query: string;
-  translated_query: string;
-  vector_results: VectorResult[];
-  selected_chunks: string[];
-  keywords: string[];
-  filters: Record<string, unknown>;
-  translation_origin: string;
-  history_messages: number;
-  timings_ms: Record<string, number>;
-  keyword_results: KeywordResult[];
-  strategy: string;
-  tool_backend?: string; // Phase 24: "mcp" or "local"
-  warnings?: string[]; // Phase 27: fallbacks used while answering
-  per_film?: string[]; // Phase 29: films retrieved separately, each with an equal share of the chunks
-  fused_results: FusedResult[];
-};
+// Shows what retrieval did for one answer. Data comes from the `debug` object of /api/chat.
 
 const ORIGIN_LABEL: Record<string, string> = {
   model: "rewritten by query translation",
@@ -84,7 +31,7 @@ export default function RagPanel({ debug }: { debug: RagDebug | null | undefined
   if (!debug) return null;
   const selected = new Set(debug.selected_chunks);
   const vectorIds = new Set(debug.vector_results.map((r) => r.chunk_id));
-  const filters = formatFilters(debug.filters ?? {});
+  const filters = formatFilters(debug.filters);
   const t = debug.timings_ms;
   const retrievalMs = (t.translation ?? 0) + (t.embedding_and_search ?? 0) + (t.keyword_search ?? 0);
   const meta = `${debug.strategy} search · ${debug.selected_chunks.length} chunks to the model · ${seconds(retrievalMs)}`;
@@ -116,7 +63,11 @@ export default function RagPanel({ debug }: { debug: RagDebug | null | undefined
               ))}
             </p>
           )}
-          {filters && <p className="mt-1 text-xs text-muted">Filters (not applied yet): {filters}</p>}
+          {filters && (
+            <p className="mt-1 text-xs text-muted">
+              {debug.filters_applied ? "Only these films were searched" : "Limits found, not applied"}: {filters}
+            </p>
+          )}
         </section>
 
         <section>
@@ -124,10 +75,10 @@ export default function RagPanel({ debug }: { debug: RagDebug | null | undefined
           <p className="text-xs text-muted">
             Similarity = 1 − cosine distance between the search query&apos;s embedding and each chunk&apos;s.
           </p>
-          {(debug.per_film ?? []).length > 1 && (
+          {debug.per_film.length > 1 && (
             <p className="mt-1 text-xs text-muted">
-              The question names {debug.per_film!.length} films, so each was searched separately and gets an equal
-              share of the {debug.selected_chunks.length} chunks sent to the model: {debug.per_film!.join(", ")}.
+              The question names {debug.per_film.length} films, so each was searched separately and gets an equal
+              share of the {debug.selected_chunks.length} chunks sent to the model: {debug.per_film.join(", ")}.
             </p>
           )}
           <ol className="mt-1 flex flex-col gap-1">
@@ -225,6 +176,13 @@ export default function RagPanel({ debug }: { debug: RagDebug | null | undefined
               ))}
             </ol>
           </section>
+        )}
+
+        {debug.invalid_citations.length > 0 && (
+          <p className="text-xs text-muted">
+            The answer cited chunk {debug.invalid_citations.join(", ")}, which was not among its sources, so the citation
+            was removed.
+          </p>
         )}
 
         <section>

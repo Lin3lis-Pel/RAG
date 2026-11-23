@@ -1,4 +1,4 @@
-"""Token usage and cost per request (Phase 14).
+"""Token usage and cost per request.
 
 One question makes several model calls: query translation (Gemini), one or more answer rounds (MiMo, more
 when tools are used), and one embedding of the search query. We add them all up per model.

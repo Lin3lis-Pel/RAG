@@ -1,4 +1,4 @@
-"""Phase 2.3: select the first working subset (about 10,000 English reviews).
+"""Select the first working subset (about 10,000 English reviews).
 
 Rules:
 - Movies: English-language, matched safely to a Rotten Tomatoes page (see dataset_utils.match_rt_to_tmdb),
@@ -6,7 +6,7 @@ Rules:
 - Reviews: non-empty, English, no encoding damage, no exact duplicates. Per movie we prefer reviews
   with a usable score (needed by rating_summary), then top critics, then longer text.
 
-Output (JSON Lines, read by Phase 4 ingestion): data/subset/movies.jsonl, data/subset/reviews.jsonl
+Output (JSON Lines, read by ingestion): data/subset/movies.jsonl, data/subset/reviews.jsonl
 Run from the repo root: python scripts/select_subset.py
 """
 

@@ -1,4 +1,4 @@
-"""An overall time limit for answering one question (Phase 27).
+"""An overall time limit for answering one question.
 
 Each model call already has its own limit (30 s, one retry), but one question can make several: translation, up to
 three tool rounds and a final answer. So the whole pipeline gets a deadline (CHAT_TIMEOUT_S, 90 s; the slowest

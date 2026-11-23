@@ -1,27 +1,7 @@
-// Phase 14: tokens and cost for one answer, from `usage` in /api/chat.
+// Tokens and cost for one answer, from `usage` in /api/chat.
 
+import type { Usage } from "./api";
 import Panel from "./Panel";
-
-export type ModelUsage = {
-  model: string;
-  calls: number;
-  input_tokens: number;
-  output_tokens: number;
-  reasoning_tokens: number;
-  cached_input_tokens: number;
-  total_tokens: number;
-  cost_usd: number | null;
-  cost_source: string;
-};
-
-export type Usage = {
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  estimated_cost_usd: number;
-  by_model: ModelUsage[];
-};
 
 const SOURCE_LABEL: Record<string, string> = {
   reported: "reported by OpenRouter",

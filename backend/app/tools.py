@@ -1,7 +1,7 @@
-"""The tools (Phase 9, get_movie_metadata in Phase 24): exact answers from the database instead of from the model's memory.
+"""The tools: exact answers from the database instead of from the model's memory.
 
 "Which is rated higher, Zodiac or Prisoners?" has one correct answer, sitting in a table. Retrieval would hand the
-model a few reviews and hope it infers ratings; a tool looks the numbers up. In Phase 10 the model decides when to
+model a few reviews and hope it infers ratings; a tool looks the numbers up. The model decides when to
 call a tool and with which arguments, but our code runs it, and it treats those arguments as untrusted input:
 
 1. Validate them with a Pydantic schema before anything touches the database.
@@ -10,7 +10,7 @@ call a tool and with which arguments, but our code runs it, and it treats those 
    (ask "which Beauty and the Beast?", or try again with a year).
 
 Each tool is a plain function taking a database session. They reach the model one of two ways (TOOL_BACKEND):
-through the MCP server (app/mcp_server.py, the default since Phase 24) or in-process via `langchain_tools`.
+through the MCP server (app/mcp_server.py, the default) or in-process via `langchain_tools`.
 Same functions, names and schemas either way.
 """
 
@@ -45,6 +45,10 @@ def _clean_title(value: str) -> str:
 
 class FilterMoviesInput(BaseModel):
     year_min: int | None = Field(default=None, ge=1900, le=2100, description="Earliest release year to include.")
+    year_max: int | None = Field(
+        default=None, ge=1900, le=2100,
+        description="Latest release year to include. For a decade give both: the 2010s are year_min 2010, year_max 2019.",
+    )
     genre: str | None = Field(default=None, description=f"One genre, from: {', '.join(KNOWN_GENRES)}.")
     rating_min: float | None = Field(default=None, ge=0, le=10, description="Minimum IMDb rating, 0-10.")
     limit: int = Field(default=10, ge=1, le=25, description="How many movies to return (best rated first).")
@@ -61,8 +65,10 @@ class FilterMoviesInput(BaseModel):
 
     @model_validator(mode="after")
     def _at_least_one_filter(self) -> "FilterMoviesInput":
-        if self.year_min is None and self.genre is None and self.rating_min is None:
-            raise ValueError("give at least one of year_min, genre, rating_min")
+        if self.year_min is None and self.year_max is None and self.genre is None and self.rating_min is None:
+            raise ValueError("give at least one of year_min, year_max, genre, rating_min")
+        if self.year_min is not None and self.year_max is not None and self.year_min > self.year_max:
+            raise ValueError("year_min is later than year_max")
         return self
 
 
@@ -168,6 +174,8 @@ def filter_movies(session: Session, **args) -> dict:
         conditions = []
         if p.year_min is not None:
             conditions.append(Movie.year >= p.year_min)
+        if p.year_max is not None:
+            conditions.append(Movie.year <= p.year_max)
         if p.genre is not None:
             conditions.append(literal(p.genre) == any_(Movie.genres))  # :genre = ANY(genres)
         if p.rating_min is not None:
@@ -251,7 +259,7 @@ def rating_summary(session: Session, **args) -> dict:
     return _run(RatingSummaryInput, args, body)
 
 
-# Phase 24: the fourth tool, added with the MCP server. One film's own facts, for questions like
+# One film's own facts, for questions like
 # "who directed Prisoners?" or "what is Zodiac's IMDb rating?", which no other tool answered.
 def get_movie_metadata(session: Session, **args) -> dict:
     def body(p: GetMovieMetadataInput) -> dict:
@@ -285,8 +293,8 @@ def get_movie_metadata(session: Session, **args) -> dict:
 
 DESCRIPTIONS = {
     "filter_movies": (
-        "Find movies in the database by minimum release year, genre and/or minimum IMDb rating (0-10). "
-        "Use it for lists like 'thrillers since 2010 rated above 7.5'. Returns up to `limit` movies, best IMDb "
+        "Find movies in the database by release years (from and/or up to), genre and/or minimum IMDb rating (0-10). "
+        "Use it for lists like 'thrillers since 2010 rated above 7.5' or 'comedies from the 90s'. Returns up to `limit` movies, best IMDb "
         "rating first, and total_matches so you know if there are more. At least one filter is required."
     ),
     "compare_movies": (

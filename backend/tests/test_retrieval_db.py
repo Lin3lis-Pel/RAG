@@ -16,7 +16,7 @@ def toy_vector(*values: float) -> list[float]:
 def add_test_chunks(session):
     # These tests check the ranking SQL, so they force an exact scan. PostgreSQL may choose the HNSW index for the
     # app's query, and HNSW is approximate: it can miss neighbours of artificial mostly-zero vectors like these
-    # (on real embeddings its recall@8 against exact search was 1.000 over 200 queries; see README, Phase 17).
+    # (on real embeddings its recall@8 against exact search was 1.000 over 200 queries; see docs/project_log.md).
     session.execute(text("SET LOCAL enable_indexscan = off"))
     session.add(Movie(id="tt_test", title="Test Movie", year=2020))
     session.add_all(
@@ -47,7 +47,7 @@ def test_ac002_returns_k_chunks_nearest_first(session):
     assert results[0].movie_title == "Test Movie" and results[0].movie_id == "tt_test"
 
 
-# --- Phase 8: review chunks carry the original review's URL -----------------------------------------
+# --- review chunks carry the original review's URL -----------------------------------------
 
 
 def test_review_chunk_gets_its_review_url_and_profile_chunk_none(session):
@@ -84,7 +84,7 @@ def test_ac007_sql_injection_text_is_just_a_question(session, monkeypatch):
     assert session.execute(text("SELECT count(*) FROM movies WHERE id = 'tt_test'")).scalar() == 1
 
 
-# --- Phase 17: keyword (full-text) search ------------------------------------------------------------------
+# --- keyword (full-text) search ------------------------------------------------------------------
 
 
 def add_text_chunks(session):
@@ -137,7 +137,7 @@ def test_keyword_text_is_a_bound_parameter(session):
     assert session.execute(text("SELECT count(*) FROM movies WHERE id = 'tt_test'")).scalar() == 1
 
 
-# --- Phase 18: hybrid on the real database -------------------------------------------------------------------
+# --- hybrid on the real database -------------------------------------------------------------------
 
 
 @pytest.mark.real_data

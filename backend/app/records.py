@@ -1,4 +1,4 @@
-"""Clean, validated shapes for ingested data (Phase 4.2–4.3).
+"""Clean, validated shapes for ingested data.
 
 Raw rows are converted into these records before anything touches the database. Pydantic does the
 checking: a row that fails validation (empty text, rating out of range, malformed ID) is skipped

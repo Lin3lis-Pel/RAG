@@ -150,7 +150,7 @@ def test_ac004_the_llm_receives_the_built_messages(monkeypatch, fake_search, fak
     assert "<question>\nWhy do people like Prisoners?\n</question>" in user.content
 
 
-# --- Phase 8: the answer carries the chunks it was based on ------------------------------------------
+# --- the answer carries the chunks it was based on ------------------------------------------
 
 
 def test_answer_returns_the_retrieved_chunks_as_sources(monkeypatch, fake_search, fake_llm):
@@ -218,7 +218,7 @@ def test_ac006_database_failure_is_rag_retrieval_failed():
 
 
 def test_system_prompt_forbids_the_models_own_verdicts():
-    # Phase 21 found the unsupported claims were the model's own comparative conclusions ("X is more disturbing").
+    # The evaluation found that the unsupported claims were the model's own comparative conclusions ("X is more disturbing").
     prompt = rag.SYSTEM_PROMPT.lower()
     assert "do not add a verdict of your own" in prompt
     assert "say so rather than deciding yourself" in prompt
