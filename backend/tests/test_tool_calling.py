@@ -3,12 +3,14 @@
 import json
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import StructuredTool
 
 from app import llm, rag, tools
+from app.errors import AppError
 from app.models import Movie
 from app.retrieval import RetrievedChunk
-from app.tool_calling import MAX_TOOL_ROUNDS, run_with_tools
+from app.tool_calling import MAX_CALLS_PER_ROUND, MAX_TOOL_ROUNDS, run_with_tools
 
 
 class NoDatabase:
@@ -62,7 +64,7 @@ def test_ac001_model_is_bound_to_the_three_tools(fake_model):
     run_with_tools(base_messages(), tools.langchain_tools(NoDatabase()))
 
     names, choice = model.bound[0]
-    assert set(names) == {"filter_movies", "compare_movies", "rating_summary", "get_movie_metadata"}  # 4th: Phase 24
+    assert set(names) == {"filter_movies", "compare_movies", "rating_summary", "get_movie_metadata"}
     assert choice is None  # the model decides
 
 
@@ -160,7 +162,7 @@ def test_unexpected_tool_crash_becomes_tool_failed(fake_model, monkeypatch):
 
 
 def test_tool_rounds_are_capped_then_the_model_must_answer(fake_model):
-    endless = [AIMessage(content="", tool_calls=[call("filter_movies", {"rating_min": 42}, f"c{i}")]) for i in range(10)]
+    endless = [AIMessage(content="", tool_calls=[call("filter_movies", {"rating_min": 42 + i}, f"c{i}")]) for i in range(10)]
     model = fake_model(*endless[:MAX_TOOL_ROUNDS], AIMessage(content="Here is what I found."))
 
     answer, records = run_with_tools(base_messages(), tools.langchain_tools(NoDatabase()))
@@ -169,6 +171,219 @@ def test_tool_rounds_are_capped_then_the_model_must_answer(fake_model):
     assert len(records) == MAX_TOOL_ROUNDS
     assert answer == "Here is what I found."
     assert model.bound[-1][1] == "none"  # the last call may not request tools
+
+
+# --- Faults of the answer model: repeated calls, too many calls, a tool call written as text --------------
+
+RAW_CALL = "<tool_call>\n<function=filter_movies>\n<parameter=genre>Thriller</parameter>\n</function>\n</tool_call>"
+
+
+@pytest.fixture
+def lookup():
+    """A tool that records every time it really runs."""
+    ran = []
+
+    def run(movie: str) -> str:
+        ran.append(movie)
+        return json.dumps({"title": movie})
+
+    return StructuredTool.from_function(func=run, name="lookup", description="test"), ran
+
+
+def tool_messages(messages) -> list[ToolMessage]:
+    return [m for m in messages if isinstance(m, ToolMessage)]
+
+
+def test_identical_calls_in_one_round_run_once_and_every_request_gets_a_reply(fake_model, lookup):
+    tool, ran = lookup
+    model = fake_model(
+        AIMessage(content="", tool_calls=[call("lookup", {"movie": "Zodiac"}, f"c{i}") for i in range(30)]),
+        AIMessage(content="done"),
+    )
+
+    answer, records = run_with_tools(base_messages(), [tool])
+
+    assert answer == "done"
+    assert ran == ["Zodiac"] and len(records) == 1
+    # The API needs one ToolMessage per requested call id; the repeats point at the first result.
+    replies = tool_messages(model.received[1])
+    assert [m.tool_call_id for m in replies] == [f"c{i}" for i in range(30)]
+    assert json.loads(replies[0].content) == {"title": "Zodiac"}
+    assert all("already answered" in json.loads(m.content)["note"].lower() for m in replies[1:])
+
+
+def test_argument_order_does_not_make_a_call_different(fake_model):
+    fake_model(
+        AIMessage(content="", tool_calls=[
+            call("filter_movies", {"rating_min": 42, "genre": "Thriller"}, "c1"),
+            call("filter_movies", {"genre": "Thriller", "rating_min": 42}, "c2"),
+        ]),
+        AIMessage(content="done"),
+    )
+
+    _, records = run_with_tools(base_messages(), tools.langchain_tools(NoDatabase()))
+
+    assert len(records) == 1
+
+
+def test_same_tool_with_other_arguments_still_runs(fake_model, lookup):
+    tool, ran = lookup
+    fake_model(
+        AIMessage(content="", tool_calls=[call("lookup", {"movie": "Zodiac"}, "c1"), call("lookup", {"movie": "Heat"}, "c2")]),
+        AIMessage(content="done"),
+    )
+
+    run_with_tools(base_messages(), [tool])
+
+    assert ran == ["Zodiac", "Heat"]
+
+
+def test_a_round_of_only_repeats_goes_straight_to_the_answer(fake_model, lookup):
+    tool, ran = lookup
+    model = fake_model(
+        AIMessage(content="", tool_calls=[call("lookup", {"movie": "Zodiac"}, "c1")]),
+        AIMessage(content="", tool_calls=[call("lookup", {"movie": "Zodiac"}, "c2")]),
+        AIMessage(content="Zodiac it is."),
+    )
+
+    answer, records = run_with_tools(base_messages(), [tool])
+
+    assert answer == "Zodiac it is."
+    assert ran == ["Zodiac"] and len(records) == 1
+    assert [choice for _, choice in model.bound] == [None, "none"]
+    assert [m.tool_call_id for m in tool_messages(model.received[2])] == ["c1", "c2"]
+
+
+def test_calls_over_the_limit_are_rejected_and_may_run_in_the_next_round(fake_model, lookup):
+    tool, ran = lookup
+    films = [f"Film {i}" for i in range(MAX_CALLS_PER_ROUND + 2)]
+    requests = [call("lookup", {"movie": film}, f"c{i}") for i, film in enumerate(films)]
+    model = fake_model(
+        AIMessage(content="", tool_calls=[*requests, call("lookup", {"movie": films[-1]}, "again")]),
+        AIMessage(content="", tool_calls=[call("lookup", {"movie": films[-1]}, "later")]),
+        AIMessage(content="done"),
+    )
+
+    _, records = run_with_tools(base_messages(), [tool])
+
+    assert MAX_CALLS_PER_ROUND == 8
+    assert ran == [*films[:8], films[-1]]
+    limited = [r.arguments["movie"] for r in records if r.result.get("error", {}).get("code") == "TOOL_LIMIT"]
+    assert limited == films[8:]  # recorded once each, also the one requested twice in the round
+    replies = tool_messages(model.received[1])
+    assert [m.tool_call_id for m in replies] == [f"c{i}" for i in range(10)] + ["again"]
+    assert [json.loads(m.content)["error"]["code"] for m in replies[8:]] == ["TOOL_LIMIT"] * 3
+
+
+def test_a_tool_call_written_as_text_is_retried_once_without_tools(fake_model):
+    model = fake_model(AIMessage(content=RAW_CALL), AIMessage(content="Watch Prisoners."))
+
+    answer, _ = run_with_tools(base_messages(), tools.langchain_tools(NoDatabase()))
+
+    assert answer == "Watch Prisoners."
+    assert model.bound[-1][1] == "none"
+    assert not any("<tool_call" in str(m.content) for m in model.received[-1])  # the bad reply is not sent back
+
+
+def test_the_retry_also_covers_the_reply_after_the_round_limit(fake_model):
+    rounds = [
+        AIMessage(content="", tool_calls=[call("filter_movies", {"rating_min": 42 + i}, f"c{i}")])
+        for i in range(MAX_TOOL_ROUNDS)
+    ]
+    fake_model(*rounds, AIMessage(content=RAW_CALL), AIMessage(content="Watch Prisoners."))
+
+    answer, _ = run_with_tools(base_messages(), tools.langchain_tools(NoDatabase()))
+
+    assert answer == "Watch Prisoners."
+
+
+def test_a_second_raw_tool_call_is_an_error_not_an_answer(fake_model):
+    model = fake_model(AIMessage(content=RAW_CALL), AIMessage(content=f"Sure. {RAW_CALL}"))
+
+    with pytest.raises(AppError) as exc:
+        run_with_tools(base_messages(), tools.langchain_tools(NoDatabase()))
+
+    assert exc.value.code == "LLM_INVALID_ANSWER" and exc.value.status_code == 502
+    assert model.script == []  # one retry, not more
+
+
+# The same faults while streaming
+
+
+def streamed(*texts: str, calls: list[dict] = ()) -> list[AIMessageChunk]:
+    """The chunks of one streamed reply: pieces of text, then tool calls."""
+    return [AIMessageChunk(content=text) for text in texts] + [
+        AIMessageChunk(content="", tool_call_chunks=[
+            {"name": c["name"], "args": json.dumps(c["args"]), "id": c["id"], "index": i}])
+        for i, c in enumerate(calls)
+    ]
+
+
+@pytest.fixture
+def fake_stream(monkeypatch):
+    def install(*script):
+        replies = list(script)
+
+        class Model:
+            def stream(self, messages):
+                return iter(replies.pop(0))
+
+        monkeypatch.setattr(llm, "tool_model", lambda tool_list, tool_choice=None: Model())
+
+    return install
+
+
+def shown_text(events) -> str:
+    return "".join(e["content"] for e in events if e["type"] == "token")
+
+
+def test_streaming_reports_a_repeated_call_once(fake_stream, lookup):
+    tool, ran = lookup
+    fake_stream(
+        streamed("Let me check.", calls=[call("lookup", {"movie": "Zodiac"}, f"c{i}") for i in range(5)]),
+        streamed("Zodiac ", "it is."),
+    )
+    events = []
+
+    answer, records = run_with_tools(base_messages(), [tool], on_event=events.append)
+
+    assert ran == ["Zodiac"] and len(records) == 1
+    assert [e["type"] for e in events] == ["token", "status", "tool_call", "status", "token", "token", "token"]
+    assert answer == shown_text(events) == "Let me check.\n\nZodiac it is."
+
+
+@pytest.mark.parametrize(
+    "pieces",
+    [[RAW_CALL], list(RAW_CALL), ["Let me look. <tool", "_call><function=x>"], ["Let me look. <", "function=x>"]],
+)
+def test_streaming_never_shows_a_tool_call_written_as_text(fake_stream, pieces):
+    fake_stream(streamed(*pieces), streamed("Watch ", "Prisoners."))
+    events = []
+
+    answer, _ = run_with_tools(base_messages(), [], on_event=events.append)
+
+    assert "<" not in shown_text(events) and "<" not in answer
+    assert answer.endswith("Watch Prisoners.") and shown_text(events).endswith("Watch Prisoners.")
+
+
+def test_streaming_still_shows_an_ordinary_less_than_sign(fake_stream):
+    fake_stream(streamed("7 <", " 8, so", " it is lower <", "t"))
+    events = []
+
+    answer, _ = run_with_tools(base_messages(), [], on_event=events.append)
+
+    assert answer == shown_text(events) == "7 < 8, so it is lower <t"
+
+
+def test_streaming_a_second_raw_tool_call_is_an_error(fake_stream):
+    fake_stream(streamed(RAW_CALL), streamed(RAW_CALL))
+    events = []
+
+    with pytest.raises(AppError) as exc:
+        run_with_tools(base_messages(), [], on_event=events.append)
+
+    assert exc.value.code == "LLM_INVALID_ANSWER"
+    assert shown_text(events) == ""
 
 
 # --- AC-005: the rules are in the system prompt --------------------------------------------------------
