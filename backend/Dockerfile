@@ -7,17 +7,20 @@
 
 FROM python:3.11-slim
 
+# uv installs the exact versions in uv.lock. Same uv version as in CI (.github/workflows/tests.yml).
+COPY --from=ghcr.io/astral-sh/uv:0.12.23 /uv /bin/uv
+
 # No .pyc files on a read-mostly container; log lines reach Cloud Logging at once instead of being buffered.
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+# uv: use the image's Python, never download one; copy files, because the cache is on another filesystem.
+ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     UV_PYTHON_DOWNLOADS=never     UV_LINK_MODE=copy     UV_NO_CACHE=1
 
 WORKDIR /app
 
-# Dependencies first, so a code change does not reinstall them (Docker reuses this layer).
-COPY requirements-runtime.txt .
-RUN pip install -r requirements-runtime.txt
+# Dependencies first, so a code change does not reinstall them (Docker reuses this layer). --locked fails the build
+# when uv.lock does not match pyproject.toml; --no-dev leaves out the data scripts' and tests' packages.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY app ./app
 COPY migrations ./migrations

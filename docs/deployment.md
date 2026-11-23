@@ -307,7 +307,7 @@ On `https://<project-id>.web.app`:
 
 Tests, `evaluation/`, the dataset download, ingestion and embedding scripts, and the embedding comparison stay in
 the repository and run locally. The container has only `app/`, `migrations/` and `alembic.ini`, and only the
-runtime dependencies (`backend/requirements-runtime.txt`; no `datasets`, no `pytest`).
+runtime dependencies (`uv sync --locked --no-dev`; no `datasets`, no `pytest`).
 
 ## Later
 

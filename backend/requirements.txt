@@ -1,4 +1,0 @@
-# Everything for local development (setup command in CLAUDE.md). The split:
-#   requirements-runtime.txt  what the deployed backend needs (backend/Dockerfile)
-#   requirements-dev.txt      runtime + data scripts + tests
--r requirements-dev.txt

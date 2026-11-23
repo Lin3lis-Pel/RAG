@@ -1,0 +1,40 @@
+# The backend's dependencies. uv.lock (committed) pins the exact version of every package, so the tests, CI and the
+# container all install the same ones: `uv sync --locked` fails instead of quietly resolving something newer.
+# Change a dependency with `uv add` / `uv lock --upgrade-package <name>`, run the tests, commit both files.
+[project]
+name = "movie-research-copilot-backend"
+version = "0.1.0"
+description = "FastAPI backend of the Movie Research Copilot"
+requires-python = ">=3.11,<3.12"
+# What the deployed container needs. Everything else is in the dev group below.
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    # LangChain talking to OpenRouter through the OpenAI-compatible client
+    "langchain-core>=1.6",
+    # Capped at the minor version: OpenRouterChat (app/llm.py) overrides a private method of this package to keep the
+    # cost of streamed calls, so a new minor release has to be tested before it is used.
+    "langchain-openai>=1.6,<1.7",
+    "langchain-text-splitters>=1.1",
+    # PostgreSQL + pgvector through SQLAlchemy, schema via Alembic migrations
+    "sqlalchemy>=2.1",
+    "psycopg[binary]>=3.3",
+    "pgvector>=0.5",
+    "alembic>=1.20",
+    # The tool server (app/mcp_server.py) and client (app/mcp_client.py)
+    "mcp>=2.3,<3",
+]
+
+[dependency-groups]
+# Installed by default by `uv sync`, left out of the container (--no-dev): data scripts and tests.
+dev = [
+    "datasets>=5.0", # Hugging Face download + pandas
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+# An application, not a library: nothing is built or installed from this folder itself.
+package = false
