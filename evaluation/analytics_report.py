@@ -7,8 +7,8 @@ Four questions, each answered by runs of the same 49 evaluation questions that d
 3. Query translation         on (baseline) vs off: retrieval, accuracy, latency, cost
 4. Answer model              MiMo v2.6 Flash (baseline) vs cheaper and stronger models: accuracy, latency, cost
 
-Baseline = today's system: hybrid search, 8 chunks, translation by Gemini 3.1 Flash Lite, answers by MiMo, tools over
-MCP (evaluation/results/final2/hybrid-r*.json, the Phase 29 final runs). Experiments ran once each
+Baseline = the system as it was for the experiments (before filters and citations): hybrid search, 8 chunks, translation by Gemini 3.1 Flash Lite, answers by MiMo, tools over
+MCP (evaluation/results/final2/hybrid-r*.json, the final runs). Experiments ran once each
 (evaluation/results/experiments/hybrid-<tag>.json); the baseline ran twice, and the gap between its two runs shows how
 much a single run moves on its own. A difference smaller than that gap is not evidence.
 
