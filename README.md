@@ -455,3 +455,8 @@ docs/         dataset notes, deployment guide, project log, experiments, AI work
 deploy/       Cloud Run settings (no secrets)
 specs/        acceptance criteria for the test-first parts
 ```
+
+## License
+
+Code and documentation: [MIT](LICENSE). Film reviews and metadata are not included in that license: see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
