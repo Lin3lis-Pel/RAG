@@ -1,6 +1,6 @@
 # Movie Research Copilot
 
-[![tests](https://github.com/everyonehatesLin3lis/RAG/actions/workflows/tests.yml/badge.svg)](https://github.com/everyonehatesLin3lis/RAG/actions/workflows/tests.yml)
+[![tests](https://github.com/Lin3lis-Pel/RAG/actions/workflows/tests.yml/badge.svg)](https://github.com/Lin3lis-Pel/RAG/actions/workflows/tests.yml)
 
 A movie research chatbot that answers from about 10,000 real critic reviews and the films' metadata instead of the
 model's memory. Ask "What did critics say about Black Swan?", "Which is rated higher, Zodiac or Prisoners?" or
@@ -416,7 +416,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 has file paths long enough to hit Windows' 260-character limit inside a deeply nested folder.
 
 ```bash
-git clone https://github.com/everyonehatesLin3lis/RAG.git
+git clone https://github.com/Lin3lis-Pel/RAG.git
 cd RAG
 ```
 
